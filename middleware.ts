@@ -5,9 +5,13 @@ import { NextResponse, type NextRequest } from "next/server";
  * Refreshes the Supabase session on every request so Server Components see a
  * valid user.
  *
- * The matcher deliberately excludes /api/webhooks — Momence is not a signed-in
- * user, and running auth middleware over the webhook path would add latency to
- * the one endpoint that needs to answer fast.
+ * The matcher deliberately excludes /api/webhooks, /api/cron and /api/momence.
+ * None of them is a signed-in user: Momence posts webhooks, the scheduler
+ * presents a bearer token, and the OAuth callback arrives as a redirect from
+ * Momence carrying a code rather than a session. Running session refresh over
+ * them adds latency to the endpoint that must answer fastest, and — worse —
+ * makes a middleware failure take down the OAuth flow that would let you
+ * recover.
  */
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -43,5 +47,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/webhooks|api/cron|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api/webhooks|api/cron|api/momence|_next/static|_next/image|favicon.ico).*)",
+  ],
 };
