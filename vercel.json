@@ -1,12 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/schedule-reports",
-      "schedule": "0 * * * *"
-    },
-    {
       "path": "/api/cron/reconcile-reports",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

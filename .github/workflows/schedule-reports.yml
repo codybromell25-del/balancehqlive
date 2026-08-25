@@ -1,0 +1,30 @@
+name: Schedule Momence reports
+
+# Vercel's Hobby plan allows one cron invocation per day, which is not enough
+# for this schedule. GitHub Actions runs the cadence instead and simply calls
+# the same endpoints; public repositories get unlimited Actions minutes.
+#
+# Scheduled runs can be delayed when GitHub is busy. That is fine here: the
+# report scheduler picks work by UTC hour and is idempotent per hour, and the
+# report budget ledger refuses anything over the daily cap regardless.
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  schedule-reports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger report scheduling
+        run: |
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/schedule-reports")
+          echo "HTTP $code"
+          cat /tmp/body
+          echo
+          # A non-2xx here means the endpoint is unreachable or the secret is
+          # wrong; both are worth failing loudly for rather than silently
+          # skipping a scheduled run.
+          test "$code" -ge 200 && test "$code" -lt 300

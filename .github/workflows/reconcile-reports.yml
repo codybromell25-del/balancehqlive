@@ -1,0 +1,23 @@
+name: Reconcile Momence data
+
+# Replays webhook events whose projection failed and collects report runs
+# whose completion webhook never arrived. This is the safety net for the
+# whole ingestion path, so it runs far more often than the report scheduler.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reconciliation
+        run: |
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/reconcile-reports")
+          echo "HTTP $code"
+          cat /tmp/body
+          echo
+          test "$code" -ge 200 && test "$code" -lt 300

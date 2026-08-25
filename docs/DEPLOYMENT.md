@@ -119,10 +119,34 @@ that has to be backfilled from reports instead.
 | `/api/cron/schedule-reports` | hourly | Requests the scheduled reports |
 | `/api/cron/reconcile-reports` | every 15 min | Replays failed projections, collects stranded report runs |
 
-**Vercel's Hobby plan allows one cron invocation per day.** Both schedules above
-need Pro. Hobby is still fine to start: webhooks carry bookings, attendance,
-memberships and revenue in near real time, and only the scheduled reports
-degrade. Reconciliation can also be triggered manually:
+**Vercel's Hobby plan allows one cron invocation per day**, which is not enough
+for either schedule. Rather than pay for Pro purely for a scheduler, GitHub
+Actions drives the cadence and calls the same endpoints — public repositories
+get unlimited Actions minutes, so this costs nothing.
+
+`vercel.json` keeps a single daily reconcile as a backstop for the case where
+Actions is disabled or degraded. The real cadence lives in
+`.github/workflows/`.
+
+Both workflows need two repository secrets — **Settings → Secrets and variables
+→ Actions → New repository secret**:
+
+| Secret | Value |
+| --- | --- |
+| `APP_URL` | `https://your-app.vercel.app`, no trailing slash |
+| `CRON_SECRET` | Same value as the Vercel environment variable |
+
+Either workflow can also be run by hand from the Actions tab (they declare
+`workflow_dispatch`), which is the quickest way to confirm the wiring before
+waiting on a schedule.
+
+One caveat: GitHub delays scheduled runs when it is busy, sometimes by tens of
+minutes. That is tolerable here — the report scheduler selects work by UTC hour
+and the budget ledger refuses anything over the daily cap regardless — but it
+is not a hard real-time guarantee. Bookings and revenue do not depend on it;
+they arrive by webhook.
+
+Reconciliation can also be triggered manually at any time:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \
