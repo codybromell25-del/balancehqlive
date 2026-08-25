@@ -19,6 +19,7 @@
   --accent: #3f6f5a;
   --muted-bar: #d6d3ce;
   --chip: #f0efec;
+  --warn: #b4593f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +32,7 @@
     --accent: #6aa88b;
     --muted-bar: #3a3936;
     --chip: #252421;
+  --warn: #c9714f;
   }
 }
 

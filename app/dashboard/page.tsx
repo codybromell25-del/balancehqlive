@@ -4,6 +4,8 @@ import { FreshnessStrip } from "./freshness-strip";
 import { Filters } from "./filters";
 import { PERIODS, DEFAULT_PERIOD } from "./periods";
 import { AttendanceTrend, LocationComparison, type TrendPoint } from "./charts";
+import { Heatmap, type HeatCell } from "./heatmap";
+import { AtRisk, PerformanceTable, type AtRiskMember, type PerfRow } from "./tables";
 
 export const dynamic = "force-dynamic";
 
@@ -71,10 +73,22 @@ export default async function DashboardPage({
   // Aggregation happens in Postgres. Fetching daily rows and summing them
   // here hit PostgREST's 1000-row cap, which silently truncated a 12-month
   // window across seven locations and reported totals that were simply wrong.
-  const [{ data: current }, { data: previous }, { data: freshness }, { data: studio }, { data: locations }] =
+  const [
+    { data: current },
+    { data: previous },
+    { data: heat },
+    { data: performance },
+    { data: atRisk },
+    { data: freshness },
+    { data: studio },
+    { data: locations },
+  ] =
     await Promise.all([
       db.rpc("dashboard_summary", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
       db.rpc("dashboard_summary", { p_from: iso(priorFrom), p_to: iso(priorTo), p_location: locationId }),
+      db.rpc("dashboard_heatmap", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
+      db.rpc("dashboard_performance", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
+      db.rpc("dashboard_at_risk", {}),
       db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
       db.from("studios").select("name, currency").limit(1).maybeSingle(),
       db.from("locations").select("momence_location_id, name").order("name"),
@@ -164,6 +178,11 @@ export default async function DashboardPage({
     attended: num(l.attended),
   }));
 
+  const atRiskRows = (atRisk ?? []) as AtRiskMember[];
+  const perf = (performance ?? {}) as { teachers?: PerfRow[]; formats?: PerfRow[] };
+  const teacherRows = perf.teachers ?? [];
+  const formatRows = perf.formats ?? [];
+
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -235,6 +254,44 @@ export default async function DashboardPage({
         </p>
         <AttendanceTrend data={trend} />
       </section>
+
+      <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="text-sm font-semibold">When your classes fill</h2>
+        <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+          Every slot you run, shaded against your own average. Red slots are the
+          ones to move, merge or drop.
+        </p>
+        <Heatmap data={(heat ?? []) as HeatCell[]} />
+      </section>
+
+      {atRiskRows.length > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Regulars who have gone quiet</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Members with five or more visits who have not booked in three weeks
+            or more. Still recoverable — past 60 days they usually are not.
+          </p>
+          <AtRisk members={atRiskRows} />
+        </section>
+      )}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">By teacher</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Ten classes or more in this period.
+          </p>
+          <PerformanceTable rows={teacherRows} label="Teacher" />
+        </section>
+
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">By class</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Ten classes or more in this period.
+          </p>
+          <PerformanceTable rows={formatRows} label="Class" />
+        </section>
+      </div>
 
       {haveLocationGrain && !filtering && perSite.length > 1 && (
         <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
