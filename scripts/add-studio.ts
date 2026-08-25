@@ -53,21 +53,37 @@ async function main() {
 
   const webhookSecret = arg("webhook-secret", false);
 
+  // Staff credentials are optional. Momence enforces 2FA on host accounts,
+  // which the password grant cannot satisfy, so the normal path is the
+  // authorization code flow — see /api/momence/authorize.
+  const staffUser = arg("username", false);
+  const staffPass = arg("password", false);
+
+  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const redirectUri = arg("redirect-uri", false) || `${base}/api/momence/callback`;
+
   const { error: credError } = await db.from("studio_credentials").upsert({
     studio_id: studio.id,
     client_id: arg("client-id"),
     client_secret_enc: encrypt(arg("client-secret")),
-    staff_username: arg("username"),
-    staff_password_enc: encrypt(arg("password")),
+    staff_username: staffUser || null,
+    staff_password_enc: staffPass ? encrypt(staffPass) : null,
     webhook_secret_enc: webhookSecret ? encrypt(webhookSecret) : null,
+    redirect_uri: redirectUri,
     updated_at: new Date().toISOString(),
   });
 
   if (credError) throw credError;
 
-  const base = process.env.APP_URL ?? "https://your-app.vercel.app";
-
   console.log(`\nAdded ${slug} (studio ${studio.id}, Momence host ${hostId}).\n`);
+  console.log("Register this redirect URI on the Momence OAuth client");
+  console.log("(Apps & Integrations \u2192 Developer API \u2192 OAuth Clients):\n");
+  console.log(`  ${redirectUri}\n`);
+  if (!staffUser) {
+    console.log("Then connect the studio by opening the authorization flow:\n");
+    console.log(`  curl -H "Authorization: Bearer $CRON_SECRET" \\`);
+    console.log(`    "${base}/api/momence/authorize?studio=${slug}"\n`);
+  }
   console.log("Next: register this webhook URL in the studio's Momence dashboard");
   console.log("under Apps & Integrations → Developer API:\n");
   console.log(`  ${base}/api/webhooks/momence?studio=${slug}\n`);

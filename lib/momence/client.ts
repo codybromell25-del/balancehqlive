@@ -1,5 +1,6 @@
 import { serviceClient } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/crypto";
+import { exchange } from "./oauth";
 
 const API_BASE = process.env.MOMENCE_API_BASE ?? "https://api.momence.com";
 
@@ -23,6 +24,21 @@ interface TokenResponse {
   refreshToken: string;
   refresh_token: string;
   refreshTokenExpiresAt: string;
+}
+
+/**
+ * Raised when a studio has no refresh token and no staff credentials, so
+ * there is no way to reach the API without an owner completing the
+ * authorization flow in a browser.
+ */
+export class NeedsAuthorizationError extends Error {
+  constructor(readonly studioId: string) {
+    super(
+      `Studio ${studioId} is not connected to Momence. Start the authorization ` +
+        `flow at /api/momence/authorize?studio=<slug>.`,
+    );
+    this.name = "NeedsAuthorizationError";
+  }
 }
 
 export class MomenceError extends Error {
@@ -76,13 +92,50 @@ export class MomenceClient {
       );
     }
 
-    const fresh = await MomenceClient.authenticate(studioId);
+    const fresh = await MomenceClient.renew(studioId);
     return new MomenceClient(
       studioId,
       studio.momence_host_id,
       fresh.accessToken,
       fresh.expiresAt,
     );
+  }
+
+  /**
+   * Obtain a usable access token with no human present.
+   *
+   * The refresh token is the normal path: Momence enforces 2FA on host
+   * accounts, so the password grant cannot be completed unattended. It is
+   * kept as a fallback only for studios onboarded with staff credentials on
+   * an account without 2FA.
+   */
+  private static async renew(studioId: string) {
+    const db = serviceClient();
+
+    const { data: token } = await db
+      .from("studio_tokens")
+      .select("refresh_token_enc")
+      .eq("studio_id", studioId)
+      .maybeSingle();
+
+    if (token?.refresh_token_enc) {
+      return exchange(studioId, {
+        type: "refresh_token",
+        refreshToken: decrypt(token.refresh_token_enc),
+      });
+    }
+
+    const { data: creds } = await db
+      .from("studio_credentials")
+      .select("staff_username")
+      .eq("studio_id", studioId)
+      .maybeSingle();
+
+    if (!creds?.staff_username) {
+      throw new NeedsAuthorizationError(studioId);
+    }
+
+    return MomenceClient.authenticate(studioId);
   }
 
   private static async authenticate(studioId: string) {
@@ -166,7 +219,7 @@ export class MomenceClient {
     // One retry on 401: the token may have been invalidated server-side
     // before its nominal expiry.
     if (res.status === 401) {
-      const fresh = await MomenceClient.authenticate(this.studioId);
+      const fresh = await MomenceClient.renew(this.studioId);
       this.accessToken = fresh.accessToken;
       this.expiresAt = fresh.expiresAt;
       res = await send();
