@@ -19,7 +19,13 @@ export const maxDuration = 60;
  * a periodic sales reconciliation to catch anything the stream dropped.
  *
  * Budget: 100 report generations per studio per day. The schedule below uses
- * roughly 26, which leaves ample room for manual refreshes and backfills.
+ * 4, leaving the rest for manual refreshes and backfills.
+ *
+ * Everything else this platform reports on is derived from webhooks rather
+ * than reports — occupancy, attendance, churn and revenue all project from
+ * the event stream. The one genuine gap is intro-offer conversion, which has
+ * no webhook equivalent and no API report; it has to come from a CSV export
+ * until Momence exposes more report types.
  */
 
 interface ScheduleEntry {
@@ -31,23 +37,17 @@ interface ScheduleEntry {
 }
 
 const SCHEDULE: ScheduleEntry[] = [
-  // Sales reconciliation four times a day: catches anything the payment
-  // webhooks missed, without pretending we need it hourly.
+  // total-sales is the only report this platform can actually generate.
+  //
+  // Probed live against the API on 2026-08-25: POST /api/v2/host/reports
+  // rejects every other type with "parameters must be a one of total-sales,
+  // franchise-gift-card-reconciliation". The OpenAPI oneOf was accurate, not
+  // merely incomplete — the 80-entry x-enumNames list is an internal enum that
+  // is not exposed through this endpoint.
+  //
+  // Four times a day reconciles revenue against what the payment webhooks
+  // projected, which is the one thing a report adds over the event stream.
   { reportType: REPORT_TYPES.TOTAL_SALES, hours: [1, 7, 13, 19], lookbackDays: 7 },
-
-  // Intro conversion is the number that actually moves the business, and it
-  // has no webhook equivalent.
-  { reportType: REPORT_TYPES.INTRO_OFFERS_CONVERSIONS, hours: [2, 8, 14, 20], lookbackDays: 90 },
-
-  // Cancellations arrive by webhook, but the report carries reason codes.
-  { reportType: REPORT_TYPES.MEMBERSHIP_CANCELLATIONS, hours: [3, 15], lookbackDays: 90 },
-
-  // Cohort retention is expensive and slow-moving. Nightly is plenty.
-  { reportType: REPORT_TYPES.RETENTION, hours: [4], lookbackDays: 365 },
-
-  // First-visit definitions are fiddly; let Momence be the source of truth
-  // and reconcile our own count against it twice a day.
-  { reportType: REPORT_TYPES.NEW_VISITORS, hours: [5, 17], lookbackDays: 30 },
 ];
 
 export async function GET(req: NextRequest) {

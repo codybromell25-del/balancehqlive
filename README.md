@@ -20,12 +20,22 @@ Webhooks solve it, and give you better than hourly freshness as a side effect:
 | New members | `member-assigned` | seconds |
 | Membership churn, freezes, failed renewals | `bought-membership-*` webhooks | seconds |
 | Revenue | `payment-transaction-*` webhooks | seconds |
-| Intro-offer conversion | scheduled report, 4×/day | ~6 hours |
-| Cohort retention | scheduled report, nightly | ~24 hours |
 | Sales reconciliation | scheduled report, 4×/day | ~6 hours |
+| Intro-offer conversion | **no API report exists** — CSV export only | manual |
 
-That schedule spends 13 of the 100 daily runs per studio, leaving ample room
-for manual refreshes, backfills and a new studio onboarding mid-cycle.
+That schedule spends 4 of the 100 daily runs per studio.
+
+The report layer is far thinner than it looks, because `POST
+/api/v2/host/reports` accepts exactly two report types — `total-sales` and
+`franchise-gift-card-reconciliation`. Everything else was verified rejected
+against the live API. Cohort retention, intro-offer conversion, new visitors
+and membership stats all exist as report types inside Momence, but are not
+reachable through the public API.
+
+That matters less than it sounds, because the webhook stream already carries
+occupancy, attendance, churn and revenue. The single genuine gap is
+**intro-offer conversion**, which has no webhook equivalent and no API report.
+For now that number comes from a CSV export.
 
 ## Architecture
 

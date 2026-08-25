@@ -8,15 +8,17 @@ import { MomenceClient } from "./client";
  * cannot quietly exhaust a studio's quota at 3am.
  */
 
-/** The report types this platform actually consumes. */
+/**
+ * The only report types POST /api/v2/host/reports accepts.
+ *
+ * Verified live on 2026-08-25 — every other type is rejected with
+ * "parameters must be a one of total-sales,
+ * franchise-gift-card-reconciliation". Do not add speculative entries here:
+ * a rejected request still costs a slot from the 100/day budget.
+ */
 export const REPORT_TYPES = {
-  INTRO_OFFERS_CONVERSIONS: "intro-offers-conversions",
-  MEMBERSHIP_CANCELLATIONS: "membership-cancellations",
-  RETENTION: "retention",
   TOTAL_SALES: "total-sales",
-  NEW_VISITORS: "new-visitors",
-  SESSION_OCCUPANCY: "session-occupancy",
-  MEMBERSHIP_STATS: "membership-stats",
+  FRANCHISE_GIFT_CARD_RECONCILIATION: "franchise-gift-card-reconciliation",
 } as const;
 
 export type ReportType = (typeof REPORT_TYPES)[keyof typeof REPORT_TYPES];
