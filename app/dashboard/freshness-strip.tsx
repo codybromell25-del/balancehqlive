@@ -40,10 +40,10 @@ export function FreshnessStrip({ freshness }: { freshness: Freshness }) {
   return (
     <div
       className={
-        "flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border px-4 py-3 text-xs " +
+        "flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border px-4 py-2.5 text-xs " +
         (problem
-          ? "border-amber-300 bg-amber-50 text-amber-900"
-          : "border-neutral-200 bg-neutral-50 text-neutral-600")
+          ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
+          : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]")
       }
     >
       <span className="flex items-center gap-2">

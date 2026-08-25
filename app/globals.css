@@ -5,8 +5,42 @@
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 }
 
+/*
+ * One palette, defined as tokens, so the charts and the page cannot drift
+ * apart. Recharts is passed var(--accent) directly rather than a hex, which
+ * is what keeps the bars and the chips the same colour in both themes.
+ */
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --border: #e7e5e1;
+  --text: #1c1b19;
+  --text-muted: #77736c;
+  --accent: #3f6f5a;
+  --muted-bar: #d6d3ce;
+  --chip: #f0efec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131312;
+    --surface: #1b1b19;
+    --border: #2e2d2a;
+    --text: #ece9e4;
+    --text-muted: #8e8a83;
+    --accent: #6aa88b;
+    --muted-bar: #3a3936;
+    --chip: #252421;
+  }
+}
+
 html {
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* Numbers in a reporting tool should never reflow as they tick up. */
