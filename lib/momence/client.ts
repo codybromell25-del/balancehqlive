@@ -4,6 +4,14 @@ import { exchange } from "./oauth";
 
 const API_BASE = process.env.MOMENCE_API_BASE ?? "https://api.momence.com";
 
+const MAX_RETRIES = 5;
+const BASE_BACKOFF_MS = 1_000;
+
+/** Worth waiting out: upstream wobble or rate limiting, not a bad request. */
+function isTransient(status: number): boolean {
+  return status === 429 || (status >= 500 && status < 600);
+}
+
 /**
  * Momence access tokens expire after a few hours even while in use, so every
  * request path has to be able to refresh. In a serverless runtime there is no
@@ -225,11 +233,26 @@ export class MomenceClient {
       res = await send();
     }
 
+    // Momence returns transient 502s under load, and 429 when a limit is hit.
+    // Both are worth waiting out rather than failing: a long backfill makes
+    // thousands of calls, and one blip should not discard the run.
+    for (let attempt = 0; attempt < MAX_RETRIES && isTransient(res.status); attempt++) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : BASE_BACKOFF_MS * 2 ** attempt;
+
+      await new Promise((r) => setTimeout(r, waitMs));
+      res = await send();
+    }
+
     if (!res.ok) {
       throw new MomenceError(
         `Momence ${init.method ?? "GET"} ${path} failed`,
         res.status,
-        await res.text(),
+        // Error bodies can be a full HTML page. Keep enough to diagnose
+        // without dumping 70KB of base64 fonts into a log.
+        (await res.text()).slice(0, 500),
       );
     }
 
