@@ -12,12 +12,47 @@ jobs:
   reconcile:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger reconciliation
+      - name: Check required secrets
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          code=$(curl -sS -o /tmp/body -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.APP_URL }}/api/cron/reconcile-reports")
+          # Report every missing secret at once rather than one per re-run.
+          missing=""
+          [ -z "$APP_URL" ]     && missing="$missing APP_URL"
+          [ -z "$CRON_SECRET" ] && missing="$missing CRON_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          # Values are masked in logs, so report shape rather than content.
+          echo "APP_URL length: ${#APP_URL}"
+          case "$APP_URL" in
+            https://*) ;;
+            *) echo "::error::APP_URL must start with https:// — got something else"; exit 1 ;;
+          esac
+          case "$APP_URL" in
+            */) echo "::error::APP_URL has a trailing slash; remove it"; exit 1 ;;
+          esac
+
+      - name: Trigger reconciliation
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          code=$(curl -sS --max-time 120 -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/reconcile-reports") || {
+              echo "::error::curl could not reach $APP_URL — network error or bad host"
+              exit 1
+            }
           echo "HTTP $code"
-          cat /tmp/body
+          cat /tmp/body || true
           echo
-          test "$code" -ge 200 && test "$code" -lt 300
+          case "$code" in
+            2*) echo "Reconciliation completed." ;;
+            401) echo "::error::401 — CRON_SECRET does not match the value set in Vercel"; exit 1 ;;
+            *)   echo "::error::Unexpected HTTP $code from the reconcile endpoint"; exit 1 ;;
+          esac
