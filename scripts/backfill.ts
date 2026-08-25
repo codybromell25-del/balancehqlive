@@ -136,6 +136,7 @@ async function main() {
 
   let done = 0, bookingRows = 0, failed = 0;
   const members = new Map<number, Booking["member"]>();
+  const firstBooking = new Map<number, string>();
 
   await pooled(worth, concurrency, async (s) => {
     try {
@@ -163,7 +164,11 @@ async function main() {
                 ? "no-show"
                 : "booked";
 
-          if (b.member) members.set(b.member.id, b.member);
+          if (b.member) {
+            members.set(b.member.id, b.member);
+            const seen = firstBooking.get(b.member.id);
+            if (!seen || b.createdAt < seen) firstBooking.set(b.member.id, b.createdAt);
+          }
 
           return {
             studio_id: studio.id,
@@ -200,12 +205,19 @@ async function main() {
   // ---- members ----------------------------------------------------------
   // Harvested from bookings rather than a separate crawl: anyone who ever
   // booked is someone worth counting, and they arrive here for free.
+  // first_seen_at defaults to now(), which would date every backfilled member
+  // to the day of the import and make "new members" meaningless. The earliest
+  // booking we have seen is the best available proxy for when they arrived.
+  const firstSeen = new Map<number, string>();
+  for (const [id, at] of firstBooking) firstSeen.set(id, at);
+
   const memberRows = [...members.values()].filter(Boolean).map((m) => ({
     studio_id: studio.id,
     momence_member_id: m!.id,
     email: m!.email ?? null,
     first_name: m!.firstName ?? null,
     last_name: m!.lastName ?? null,
+    first_seen_at: firstSeen.get(m!.id) ?? now,
     updated_at: now,
   }));
 
