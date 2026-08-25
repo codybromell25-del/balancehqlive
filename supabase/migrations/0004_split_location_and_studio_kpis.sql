@@ -24,8 +24,13 @@ with attendance as (
     o.momence_location_id,
     o.session_date                as day,
     count(*)                      as classes_run,
-    sum(o.capacity)               as capacity_offered,
-    sum(o.booked)                 as spots_taken,
+    -- Capacity and the seats measured against it are summed only over
+    -- classes that declare a capacity. Roughly 1,500 sessions a year —
+    -- appointments and one-to-ones — have none, and folding their bookings
+    -- into spots_taken while contributing nothing to capacity_offered would
+    -- push the fill rate above 100% and make it meaningless.
+    sum(o.capacity) filter (where o.capacity > 0)  as capacity_offered,
+    sum(o.booked)   filter (where o.capacity > 0)  as spots_taken,
     sum(o.attended)               as attended,
     sum(o.no_shows)               as no_shows,
     sum(o.late_cancellations)     as late_cancellations
