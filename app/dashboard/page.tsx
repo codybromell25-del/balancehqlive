@@ -6,6 +6,8 @@ import { PERIODS, DEFAULT_PERIOD } from "./periods";
 import { AttendanceTrend, LocationComparison, type TrendPoint } from "./charts";
 import { Heatmap, type HeatCell } from "./heatmap";
 import { AtRisk, PerformanceTable, type AtRiskMember, type PerfRow } from "./tables";
+import { MembershipTrend, Cohorts, type MonthPoint, type CohortCell } from "./membership";
+import { LifecycleBar, CancellationBreakdown, type Lifecycle, type Cancellations } from "./lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +69,9 @@ export default async function DashboardPage({
   const priorTo = new Date(from.getTime() - 86_400_000);
   const priorFrom = new Date(priorTo.getTime() - (WINDOW - 1) * 86_400_000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
+  // First-class conversion always looks at a full year: a 7-day window would
+  // contain too few first-timers to mean anything.
+  const yearAgo = new Date(to.getTime() - 365 * 86_400_000);
 
   const locationId = selected === "all" ? null : Number(selected);
 
@@ -79,6 +84,11 @@ export default async function DashboardPage({
     { data: heat },
     { data: performance },
     { data: atRisk },
+    { data: membership },
+    { data: cohorts },
+    { data: lifecycle },
+    { data: cancellations },
+    { data: firstClass },
     { data: freshness },
     { data: studio },
     { data: locations },
@@ -89,6 +99,11 @@ export default async function DashboardPage({
       db.rpc("dashboard_heatmap", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
       db.rpc("dashboard_performance", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
       db.rpc("dashboard_at_risk", {}),
+      db.rpc("dashboard_membership_trend", { p_months: 12 }),
+      db.rpc("dashboard_cohorts", { p_months: 9 }),
+      db.rpc("dashboard_lifecycle", {}),
+      db.rpc("dashboard_cancellations", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
+      db.rpc("dashboard_first_class", { p_from: iso(yearAgo), p_to: iso(to) }),
       db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
       db.from("studios").select("name, currency").limit(1).maybeSingle(),
       db.from("locations").select("momence_location_id, name").order("name"),
@@ -179,6 +194,16 @@ export default async function DashboardPage({
   }));
 
   const atRiskRows = (atRisk ?? []) as AtRiskMember[];
+  const monthRows = (membership ?? []) as MonthPoint[];
+  const cohortRows = (cohorts ?? []) as CohortCell[];
+  const stages = lifecycle as Lifecycle | null;
+  const cancels = cancellations as Cancellations | null;
+  const fc = (firstClass ?? {}) as {
+    total_first_timers?: number;
+    returned?: number;
+    by_class?: { name: string; first_timers: number; returned: number; conversion: number }[];
+    by_teacher?: { name: string; first_timers: number; returned: number; conversion: number }[];
+  };
   const perf = (performance ?? {}) as { teachers?: PerfRow[]; formats?: PerfRow[] };
   const teacherRows = perf.teachers ?? [];
   const formatRows = perf.formats ?? [];
@@ -264,6 +289,59 @@ export default async function DashboardPage({
         <Heatmap data={(heat ?? []) as HeatCell[]} />
       </section>
 
+      <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="text-sm font-semibold">Active members, month by month</h2>
+        <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+          Anyone who booked at least once. Split by whether they were new that
+          month or returning — a flat total can hide churn being papered over
+          with new faces.
+        </p>
+        <MembershipTrend data={monthRows} />
+      </section>
+
+      {stages && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Where your members stand</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Everyone who has ever booked, by how recently and how often.
+          </p>
+          <LifecycleBar data={stages} />
+        </section>
+      )}
+
+      <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="text-sm font-semibold">Do new joiners stick?</h2>
+        <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+          Each row is everyone who joined that month. The numbers are the
+          percentage still booking, that many months later.
+        </p>
+        <Cohorts data={cohortRows} />
+      </section>
+
+      {(fc.by_class?.length || fc.by_teacher?.length) && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">First class, and whether they came back</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            {fc.returned?.toLocaleString()} of {fc.total_first_timers?.toLocaleString()} first-timers
+            in the last year booked again. Below is where that went well and where it did not.
+          </p>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <ConversionTable rows={fc.by_class ?? []} label="Class" />
+            <ConversionTable rows={fc.by_teacher ?? []} label="First taught by" />
+          </div>
+        </section>
+      )}
+
+      {cancels && cancels.total > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Cancellations and empty seats</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            How much warning you get, and how many seats went unsold.
+          </p>
+          <CancellationBreakdown data={cancels} />
+        </section>
+      )}
+
       {atRiskRows.length > 0 && (
         <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <h2 className="text-sm font-semibold">Regulars who have gone quiet</h2>
@@ -303,6 +381,44 @@ export default async function DashboardPage({
         </section>
       )}
     </main>
+  );
+}
+
+function ConversionTable({
+  rows,
+  label,
+}: {
+  rows: { name: string; first_timers: number; returned: number; conversion: number }[];
+  label: string;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-[var(--text-muted)]">Not enough first-timers to compare.</p>;
+  }
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">
+          <th className="pb-2 font-medium">{label}</th>
+          <th className="pb-2 pl-3 text-right font-medium">Tried it</th>
+          <th className="pb-2 pl-3 text-right font-medium">Came back</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name} className="border-t border-[var(--border)]">
+            <td className="py-2 pr-3">{r.name}</td>
+            <td className="py-2 pl-3 text-right tabular-nums text-[var(--text-muted)]">
+              {r.first_timers}
+            </td>
+            <td className="py-2 pl-3 text-right tabular-nums">
+              <span className={r.conversion < 65 ? "text-rose-600 dark:text-rose-400" : ""}>
+                {r.conversion}%
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
