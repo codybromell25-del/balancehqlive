@@ -1,19 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { PERIODS } from "./periods";
 
 /**
  * Filter state lives in the URL, not component state, so a particular view —
  * Bray over the last quarter, say — can be bookmarked, shared with a manager,
  * or reloaded without resetting to defaults.
  */
-
-export const PERIODS = [
-  { key: "7", label: "7 days", days: 7 },
-  { key: "28", label: "28 days", days: 28 },
-  { key: "90", label: "90 days", days: 90 },
-  { key: "365", label: "12 months", days: 365 },
-] as const;
 
 export function Filters({
   locations,

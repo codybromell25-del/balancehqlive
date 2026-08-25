@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { userClient } from "@/lib/db";
 import { FreshnessStrip } from "./freshness-strip";
-import { Filters, PERIODS } from "./filters";
+import { Filters } from "./filters";
+import { PERIODS, DEFAULT_PERIOD } from "./periods";
 import { AttendanceTrend, LocationComparison, type TrendPoint } from "./charts";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,6 @@ export const dynamic = "force-dynamic";
  * already see, so it is a view preference rather than a permission, and
  * belongs in the URL where it can be shared.
  */
-
-/** Rows are fetched for two windows so the comparison has something to compare. */
-const DEFAULT_PERIOD = "28";
 
 type StudioRow = {
   day: string;
