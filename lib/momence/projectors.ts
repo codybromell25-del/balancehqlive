@@ -15,6 +15,17 @@ import { collectReport } from "./reports";
 
 type Payload = Record<string, any>;
 
+/**
+ * Momence returns monetary amounts as strings ("0", "359"). Number("") is 0,
+ * which would quietly turn a missing amount into a real zero, so empty and
+ * absent both become null and stay distinguishable from a genuine zero.
+ */
+function money(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export interface MomenceEvent {
   timestamp: string;
   event: string;
@@ -257,15 +268,24 @@ export async function project(studioId: string, evt: MomenceEvent): Promise<void
         `/api/v2/host/payment-transactions/${p.id}`,
       );
 
+      // Field names verified against a live transaction. There is no `amount`
+      // or `total`: money actually taken is `paidInCurrency`, and the amounts
+      // arrive as strings. `paidInMoneyCredits` is deliberately excluded from
+      // revenue — that money was already counted when the credit was bought,
+      // so adding it here would double-count it.
+      const amount = money(tx.paidInCurrency);
+
       await db.from("payment_transactions").upsert(
         {
           studio_id: studioId,
           transaction_id: p.id,
-          status: evt.event.replace("payment-transaction-", ""),
-          amount: tx.amount ?? tx.total ?? null,
+          // paymentStatus is the transaction's own view of itself; the event
+          // name is only how we were told about it.
+          status: tx.paymentStatus ?? evt.event.replace("payment-transaction-", ""),
+          amount,
           currency: tx.currency ?? null,
-          member_id: tx.memberId ?? null,
-          occurred_at: evt.timestamp,
+          member_id: tx.payingMember?.id ?? null,
+          occurred_at: tx.createdAt ?? evt.timestamp,
           raw: tx,
         },
         { onConflict: "studio_id,transaction_id" },
