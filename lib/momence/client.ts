@@ -10,10 +10,19 @@ const API_BASE = process.env.MOMENCE_API_BASE ?? "https://api.momence.com";
  * across invocations.
  */
 
+/**
+ * Shape per AuthTokenDto in the v2 OpenAPI schema. Note there is no
+ * `expires_in`: the API returns an absolute `accessTokenExpiresAt` instead.
+ * Both camelCase and snake_case spellings are returned for the tokens
+ * themselves, and both are declared required.
+ */
 interface TokenResponse {
+  accessToken: string;
   access_token: string;
-  refresh_token?: string;
-  expires_in: number;
+  accessTokenExpiresAt: string;
+  refreshToken: string;
+  refresh_token: string;
+  refreshTokenExpiresAt: string;
 }
 
 export class MomenceError extends Error {
@@ -115,17 +124,28 @@ export class MomenceClient {
     }
 
     const token = (await res.json()) as TokenResponse;
-    const expiresAt = new Date(Date.now() + token.expires_in * 1000);
+    const accessToken = token.access_token ?? token.accessToken;
+    const expiresAt = new Date(token.accessTokenExpiresAt);
+
+    if (!accessToken || Number.isNaN(expiresAt.getTime())) {
+      throw new MomenceError(
+        `Momence returned an unusable token payload for studio ${studioId}`,
+        res.status,
+        token,
+      );
+    }
 
     await db.from("studio_tokens").upsert({
       studio_id: studioId,
-      access_token_enc: encrypt(token.access_token),
-      refresh_token_enc: token.refresh_token ? encrypt(token.refresh_token) : null,
+      access_token_enc: encrypt(accessToken),
+      refresh_token_enc: (token.refresh_token ?? token.refreshToken)
+        ? encrypt(token.refresh_token ?? token.refreshToken)
+        : null,
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     });
 
-    return { accessToken: token.access_token, expiresAt };
+    return { accessToken, expiresAt };
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {

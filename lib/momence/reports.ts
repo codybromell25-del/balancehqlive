@@ -30,6 +30,21 @@ export interface ReportParams {
   saleTypes?: string[];
 }
 
+/** Documented response shape of GET /api/v2/host/reports/{reportRunId}. */
+interface ReportRunResponse {
+  id: number;
+  status: "running" | "completed" | "failed";
+  parameters?: Record<string, unknown>;
+  data?: { reportType?: string; items?: Record<string, unknown>[] } | null;
+}
+
+export class ReportNotReadyError extends Error {
+  constructor(runId: string, readonly reportStatus: string) {
+    super(`Report run ${runId} is not ready yet (status: ${reportStatus})`);
+    this.name = "ReportNotReadyError";
+  }
+}
+
 export class BudgetExhaustedError extends Error {
   constructor(studioId: string) {
     super(`Daily report budget exhausted for studio ${studioId}`);
@@ -125,7 +140,15 @@ export async function collectReport(runId: string): Promise<number> {
   const client = await MomenceClient.forStudio(run.studio_id);
   const path = run.report_url_api ?? `/api/v2/host/reports/${run.momence_run_id}`;
 
-  const payload = await client.request<unknown>(path);
+  const payload = await client.request<ReportRunResponse>(path);
+
+  // The retrieve endpoint answers 200 for a run that is still generating,
+  // with status "running" and data: null. Storing that would mark the run
+  // complete and leave the real rows unfetched forever.
+  if (payload?.status && payload.status !== "completed") {
+    throw new ReportNotReadyError(runId, payload.status);
+  }
+
   const rows = normaliseRows(payload);
 
   if (rows.length > 0) {
@@ -160,14 +183,22 @@ export async function collectReport(runId: string): Promise<number> {
  */
 function normaliseRows(payload: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload)) return payload as Record<string, unknown>[];
+  if (!payload || typeof payload !== "object") return [];
 
-  if (payload && typeof payload === "object") {
-    const obj = payload as Record<string, unknown>;
-    for (const key of ["rows", "data", "results", "items"]) {
-      if (Array.isArray(obj[key])) return obj[key] as Record<string, unknown>[];
-    }
-    return [obj];
+  const obj = payload as Record<string, unknown>;
+
+  // The documented shape: { id, status, parameters, data: { reportType, items } }.
+  const data = obj.data;
+  if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).items)) {
+    return (data as Record<string, unknown>).items as Record<string, unknown>[];
   }
 
+  // Fallbacks for report types whose payload the schema does not pin down.
+  for (const key of ["rows", "data", "results", "items"]) {
+    if (Array.isArray(obj[key])) return obj[key] as Record<string, unknown>[];
+  }
+
+  // Deliberately not [obj]: wrapping an envelope as a single row silently
+  // produces a "successful" report run containing nothing usable.
   return [];
 }

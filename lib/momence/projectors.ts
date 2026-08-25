@@ -159,15 +159,17 @@ export async function project(studioId: string, evt: MomenceEvent): Promise<void
 
       // An update alone would silently do nothing if the booking event has
       // not arrived yet, and the attendance would never be counted.
+      //
+      // This event carries memberId, not targetMemberId — the cancellation
+      // event uses the other spelling. Both are per the events reference.
       if (!touched?.length) {
         await db.from("session_bookings").upsert(
           {
             studio_id: studioId,
             momence_booking_id: p.sessionBookingId,
             momence_session_id: p.sessionId,
-            member_id: p.targetMemberId,
-            paying_member_id: p.payingMemberId,
-            booked_at: p.bookedAt ?? evt.timestamp,
+            member_id: p.memberId,
+            booked_at: evt.timestamp,
             ...patch,
           },
           { onConflict: "studio_id,momence_booking_id" },
