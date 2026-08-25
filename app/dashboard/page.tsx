@@ -1,6 +1,7 @@
+import { Suspense } from "react";
 import { userClient } from "@/lib/db";
 import { FreshnessStrip } from "./freshness-strip";
-import { LocationFilter } from "./location-filter";
+import { Filters, PERIODS } from "./filters";
 import { AttendanceTrend, LocationComparison, type TrendPoint } from "./charts";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export const dynamic = "force-dynamic";
  * belongs in the URL where it can be shared.
  */
 
-const WINDOW = 28;
+/** Rows are fetched for two windows so the comparison has something to compare. */
+const DEFAULT_PERIOD = "28";
 
 type StudioRow = {
   day: string;
@@ -56,10 +58,12 @@ function pctChange(current: number, previous: number) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ location?: string }>;
+  searchParams: Promise<{ location?: string; period?: string }>;
 }) {
-  const { location } = await searchParams;
+  const { location, period } = await searchParams;
   const selected = location ?? "all";
+  const periodKey = PERIODS.some((p) => p.key === period) ? period! : DEFAULT_PERIOD;
+  const WINDOW = PERIODS.find((p) => p.key === periodKey)!.days;
   const db = await userClient();
 
   const {
@@ -243,16 +247,21 @@ export default async function DashboardPage({
             )}
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Last {WINDOW} days, compared with the {WINDOW} before.
+            {PERIODS.find((p) => p.key === periodKey)!.label}, compared with the{" "}
+            {WINDOW} days before.
           </p>
         </div>
       </header>
 
-      {haveLocationGrain && sites.length > 1 && (
-        <div className="mb-6">
-          <LocationFilter locations={sites} selected={selected} />
-        </div>
-      )}
+      <div className="mb-6">
+        <Suspense fallback={<div className="h-16" />}>
+        <Filters
+          locations={haveLocationGrain ? sites : []}
+          location={selected}
+          period={periodKey}
+        />
+        </Suspense>
+      </div>
 
       {freshness && <FreshnessStrip freshness={freshness} />}
 
