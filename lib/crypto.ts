@@ -36,12 +36,21 @@ function key(): Buffer {
   return cachedKey;
 }
 
-export function encrypt(plaintext: string): Buffer {
+/**
+ * Returns the Postgres bytea hex literal, not a Buffer.
+ *
+ * supabase-js talks JSON over PostgREST, and a Node Buffer serialises to
+ * {"type":"Buffer","data":[...]} — so a Buffer return lands in the column as
+ * the text of that object and decryption fails with an auth tag error. The
+ * "\\x<hex>" form is what Postgres accepts as bytea input, and is the same
+ * shape PostgREST hands back on read, so encrypt and decrypt stay symmetric.
+ */
+export function encrypt(plaintext: string): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key(), iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   // iv | authTag | ciphertext
-  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
+  return "\\x" + Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("hex");
 }
 
 export function decrypt(blob: Buffer | Uint8Array | string): string {
