@@ -24,8 +24,8 @@ Webhooks solve it, and give you better than hourly freshness as a side effect:
 | Cohort retention | scheduled report, nightly | ~24 hours |
 | Sales reconciliation | scheduled report, 4×/day | ~6 hours |
 
-That schedule spends about 26 of the 100 daily runs, leaving room for manual
-refreshes, backfills and a new studio onboarding mid-cycle.
+That schedule spends 13 of the 100 daily runs per studio, leaving ample room
+for manual refreshes, backfills and a new studio onboarding mid-cycle.
 
 ## Architecture
 

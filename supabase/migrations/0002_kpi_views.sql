@@ -6,6 +6,11 @@
 -- timer and would reintroduce exactly the staleness we removed.
 -- If any of these get slow at scale, materialise that one view and
 -- refresh it from the webhook handler.
+--
+-- Every view is security_invoker. A view otherwise runs with the
+-- privileges of its owner, reading straight past the row level security
+-- on the tables underneath it, and one studio would see every studio's
+-- numbers. Requires Postgres 15 or newer.
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -15,7 +20,8 @@
 -- attendance from booking and check-in events. No report run needed.
 -- ------------------------------------------------------------
 
-create or replace view kpi_session_occupancy as
+create or replace view kpi_session_occupancy
+  with (security_invoker = on) as
 select
   s.studio_id,
   s.momence_session_id,
@@ -56,7 +62,8 @@ group by s.studio_id, s.momence_session_id, s.momence_location_id,
 -- Daily rollup, per studio per location
 -- ------------------------------------------------------------
 
-create or replace view kpi_daily as
+create or replace view kpi_daily
+  with (security_invoker = on) as
 with days as (
   select
     st.id as studio_id,
@@ -154,7 +161,8 @@ left join churn       c  on c.studio_id  = d.studio_id and c.day  = d.day;
 -- Active membership base and churn rate, month by month
 -- ------------------------------------------------------------
 
-create or replace view kpi_membership_health as
+create or replace view kpi_membership_health
+  with (security_invoker = on) as
 select
   studio_id,
   date_trunc('month', coalesce(cancelled_at, now()))::date as month,
@@ -170,7 +178,8 @@ group by 1, 2;
 -- Freshness, so the dashboard can be honest about its own lag
 -- ------------------------------------------------------------
 
-create or replace view kpi_data_freshness as
+create or replace view kpi_data_freshness
+  with (security_invoker = on) as
 select
   s.id as studio_id,
   (select max(received_at) from webhook_events w where w.studio_id = s.id) as last_webhook_at,

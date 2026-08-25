@@ -106,30 +106,73 @@ export async function project(studioId: string, evt: MomenceEvent): Promise<void
     }
 
     case "session-booking-cancelled": {
-      await db.from("session_bookings").upsert(
-        {
-          studio_id: studioId,
-          momence_booking_id: p.sessionBookingId,
-          momence_session_id: p.sessionId,
-          member_id: p.targetMemberId,
-          paying_member_id: p.payingMemberId,
-          status: "cancelled",
-          booked_at: evt.timestamp,
-          cancelled_at: p.cancelledAt,
-          is_late_cancellation: Boolean(p.isLateCancellation),
-          updated_at: now,
-        },
-        { onConflict: "studio_id,momence_booking_id" },
-      );
+      // booked_at is deliberately absent from this patch. Writing the
+      // cancellation time into it would move the booking to the wrong day
+      // in kpi_daily, and a replay would do it again.
+      const patch = {
+        status: "cancelled",
+        cancelled_at: p.cancelledAt ?? evt.timestamp,
+        is_late_cancellation: Boolean(p.isLateCancellation),
+        updated_at: now,
+      };
+
+      const { data: touched } = await db
+        .from("session_bookings")
+        .update(patch)
+        .eq("studio_id", studioId)
+        .eq("momence_booking_id", p.sessionBookingId)
+        .select("momence_booking_id");
+
+      // A cancellation can outrun the session-booked event it refers to.
+      // Insert what this event knows rather than dropping it; booked_at is
+      // a placeholder until the booking event lands and corrects it.
+      if (!touched?.length) {
+        await db.from("session_bookings").upsert(
+          {
+            studio_id: studioId,
+            momence_booking_id: p.sessionBookingId,
+            momence_session_id: p.sessionId,
+            member_id: p.targetMemberId,
+            paying_member_id: p.payingMemberId,
+            booked_at: p.bookedAt ?? evt.timestamp,
+            ...patch,
+          },
+          { onConflict: "studio_id,momence_booking_id" },
+        );
+      }
       break;
     }
 
     case "session-booking-checked-in": {
-      await db
+      const patch = {
+        status: "checked-in",
+        checked_in_at: p.checkedInAt ?? evt.timestamp,
+        updated_at: now,
+      };
+
+      const { data: touched } = await db
         .from("session_bookings")
-        .update({ status: "checked-in", checked_in_at: p.checkedInAt, updated_at: now })
+        .update(patch)
         .eq("studio_id", studioId)
-        .eq("momence_booking_id", p.sessionBookingId);
+        .eq("momence_booking_id", p.sessionBookingId)
+        .select("momence_booking_id");
+
+      // An update alone would silently do nothing if the booking event has
+      // not arrived yet, and the attendance would never be counted.
+      if (!touched?.length) {
+        await db.from("session_bookings").upsert(
+          {
+            studio_id: studioId,
+            momence_booking_id: p.sessionBookingId,
+            momence_session_id: p.sessionId,
+            member_id: p.targetMemberId,
+            paying_member_id: p.payingMemberId,
+            booked_at: p.bookedAt ?? evt.timestamp,
+            ...patch,
+          },
+          { onConflict: "studio_id,momence_booking_id" },
+        );
+      }
       break;
     }
 

@@ -283,3 +283,32 @@ end $$;
 create policy studio_users_read on studio_users
   for select using (user_id = auth.uid());
 alter table studio_users enable row level security;
+
+-- ------------------------------------------------------------
+-- RLS for the remaining tables.
+--
+-- Every table in the public schema is reachable through PostgREST
+-- with the anon key. A table without RLS enabled is therefore world
+-- readable, not "service-role only" — enabling it with no policy at
+-- all is what makes it service-role only, because the service role
+-- bypasses RLS while anon and authenticated match no policy.
+-- ------------------------------------------------------------
+
+-- Secrets. No policy, deliberately: nothing but the service role reads these.
+alter table studio_credentials enable row level security;
+alter table studio_tokens      enable row level security;
+
+-- report_budget is surfaced to owners through kpi_data_freshness.
+alter table report_budget enable row level security;
+create policy studio_read on report_budget
+  for select using (studio_id in (select user_studio_ids()));
+
+-- report_rows carries no studio_id of its own, so the boundary is
+-- inherited from the run that produced it.
+alter table report_rows enable row level security;
+create policy studio_read on report_rows
+  for select using (
+    report_run_id in (
+      select id from report_runs where studio_id in (select user_studio_ids())
+    )
+  );

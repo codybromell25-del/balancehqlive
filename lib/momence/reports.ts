@@ -115,7 +115,7 @@ export async function collectReport(runId: string): Promise<number> {
 
   const { data: run, error } = await db
     .from("report_runs")
-    .select("id, studio_id, momence_run_id, report_url_api, status")
+    .select("id, studio_id, momence_run_id, report_url_api, status, row_count")
     .eq("id", runId)
     .single();
 
