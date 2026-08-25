@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+
+/** The shape @supabase/ssr hands to setAll. */
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 /**
  * Two clients, deliberately separated.
@@ -30,7 +33,7 @@ export async function userClient() {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (items) => {
+        setAll: (items: CookieToSet[]) => {
           try {
             items.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),

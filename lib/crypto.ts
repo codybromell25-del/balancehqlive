@@ -9,18 +9,36 @@ import crypto from "node:crypto";
  * for studios that are not yours.
  */
 
-const KEY = Buffer.from(process.env.CREDENTIAL_ENCRYPTION_KEY ?? "", "base64");
+/**
+ * Resolved on first use, not at import.
+ *
+ * A module-level throw runs during `next build` page-data collection, which
+ * fails the build on any machine that does not hold production secrets. The
+ * key is only ever needed to serve a request, so check it when a request
+ * actually asks for it — and check it in every environment, not just
+ * production, so a missing key surfaces in dev rather than at deploy.
+ */
+let cachedKey: Buffer | null = null;
 
-if (KEY.length !== 32 && process.env.NODE_ENV === "production") {
-  throw new Error(
-    "CREDENTIAL_ENCRYPTION_KEY must be 32 bytes, base64 encoded. " +
-      "Generate one with: openssl rand -base64 32",
-  );
+function key(): Buffer {
+  if (cachedKey) return cachedKey;
+
+  const raw = Buffer.from(process.env.CREDENTIAL_ENCRYPTION_KEY ?? "", "base64");
+
+  if (raw.length !== 32) {
+    throw new Error(
+      "CREDENTIAL_ENCRYPTION_KEY must be 32 bytes, base64 encoded. " +
+        "Generate one with: openssl rand -base64 32",
+    );
+  }
+
+  cachedKey = raw;
+  return cachedKey;
 }
 
 export function encrypt(plaintext: string): Buffer {
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", KEY, iv);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key(), iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   // iv | authTag | ciphertext
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
@@ -36,7 +54,7 @@ export function decrypt(blob: Buffer | Uint8Array | string): string {
   const authTag = buf.subarray(12, 28);
   const ciphertext = buf.subarray(28);
 
-  const decipher = crypto.createDecipheriv("aes-256-gcm", KEY, iv);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key(), iv);
   decipher.setAuthTag(authTag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
