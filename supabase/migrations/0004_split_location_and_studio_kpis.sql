@@ -13,10 +13,20 @@
 -- than admitting it.
 -- ============================================================
 
+-- create or replace cannot reorder or rename a view's columns, and both
+-- views change shape here. Drop them first — they hold no data, so this
+-- costs nothing and the recreate below is the real definition.
+--
+-- Order matters: kpi_daily reads kpi_daily_location, so the dependent goes
+-- first. No cascade, so an unexpected dependency fails loudly rather than
+-- being silently dropped.
+drop view if exists kpi_daily;
+drop view if exists kpi_daily_location;
+
 -- ------------------------------------------------------------
 -- Per location, per day: everything a class produces.
 -- ------------------------------------------------------------
-create or replace view kpi_daily_location
+create view kpi_daily_location
   with (security_invoker = on) as
 with attendance as (
   select
@@ -80,7 +90,7 @@ left join bookings b
 -- Class metrics are the totals across every location; revenue and
 -- membership movement have no location dimension at all.
 -- ------------------------------------------------------------
-create or replace view kpi_daily
+create view kpi_daily
   with (security_invoker = on) as
 with days as (
   select
