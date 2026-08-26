@@ -132,7 +132,7 @@ export async function collectReport(runId: string): Promise<number> {
 
   const { data: run, error } = await db
     .from("report_runs")
-    .select("id, studio_id, momence_run_id, report_url_api, status, row_count")
+    .select("id, studio_id, momence_run_id, report_url_api, status, row_count, report_type")
     .eq("id", runId)
     .single();
 
@@ -164,6 +164,13 @@ export async function collectReport(runId: string): Promise<number> {
         })),
       );
     }
+  }
+
+  // A total-sales report is the only source of revenue history, so its rows
+  // are projected into `sales` rather than left as JSONB. Without this the
+  // scheduled runs land in report_rows and the revenue figures never move.
+  if (run.report_type === REPORT_TYPES.TOTAL_SALES && rows.length > 0) {
+    await projectSales(run.studio_id, rows);
   }
 
   await db
@@ -203,4 +210,57 @@ function normaliseRows(payload: unknown): Record<string, unknown>[] {
   // Deliberately not [obj]: wrapping an envelope as a single row silently
   // produces a "successful" report run containing nothing usable.
   return [];
+}
+
+/**
+ * Upsert total-sales rows into `sales`.
+ *
+ * Keyed on saleItemId so a re-run of an overlapping date range corrects rows
+ * rather than duplicating them — which matters because the scheduler requests
+ * a rolling seven-day window four times a day.
+ *
+ * Location lives on the transaction item, not the sale itself.
+ */
+async function projectSales(studioId: string, rows: Record<string, unknown>[]) {
+  const db = serviceClient();
+  const now = new Date().toISOString();
+
+  const mapped = rows
+    .filter((r) => r.saleItemId && r.paymentDate)
+    .map((r) => {
+      const items = (r.transactionItems as { homeLocation?: string }[] | undefined) ?? [];
+      return {
+        studio_id: studioId,
+        sale_item_id: r.saleItemId as number,
+        payment_transaction_id: (r.paymentTransactionId as number) ?? null,
+        member_id: (r.memberId as number) ?? null,
+        paying_member_id: (r.payingMemberId as number) ?? null,
+        customer_name: (r.customerName as string) ?? null,
+        customer_email: (r.customerEmail as string) ?? null,
+        payment_date: r.paymentDate as string,
+        service_date: (r.serviceDate as string) ?? null,
+        payment_value: (r.paymentValue as number) ?? null,
+        payment_vat: (r.paymentVat as number) ?? null,
+        paid_in_money_credits: (r.paidInMoneyCredits as number) ?? null,
+        refunded: (r.refunded as number) ?? null,
+        payment_item: (r.paymentItem as string) ?? null,
+        payment_category: (r.paymentCategory as string) ?? null,
+        membership_type: (r.membershipType as string) ?? null,
+        payment_method: (r.paymentMethod as string) ?? null,
+        payment_status: (r.paymentStatus as string) ?? null,
+        location_name: items[0]?.homeLocation ?? null,
+        currency: (r.currency as string) ?? null,
+        raw: r,
+        updated_at: now,
+      };
+    });
+
+  // 150 rather than 500: each row carries the full report payload, and larger
+  // batches broke the connection mid-write during the initial backfill.
+  for (let i = 0; i < mapped.length; i += 150) {
+    const { error } = await db
+      .from("sales")
+      .upsert(mapped.slice(i, i + 150), { onConflict: "studio_id,sale_item_id" });
+    if (error) throw error;
+  }
 }
