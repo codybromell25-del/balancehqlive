@@ -158,7 +158,10 @@ export default async function DashboardPage({
       label: "Revenue",
       value: money.format(num(now.revenue)),
       change: pctChange(num(now.revenue), num(before.revenue)),
-      note: filtering ? "all locations" : undefined,
+      // Revenue now follows the filter. Sales Momence never attributed to a
+      // site are excluded when one is selected, so the per-location figures
+      // will not add up to the studio total.
+      note: filtering ? "attributed sales only" : undefined,
     },
     {
       label: "Attended",
