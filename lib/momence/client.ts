@@ -212,15 +212,32 @@ export class MomenceClient {
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
 
-    const send = () =>
-      fetch(url, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...init.headers,
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-      });
+    /**
+     * A dropped connection is thrown, not returned as a status, so the
+     * status-based retry below never sees it. A long backfill holds the
+     * connection open for minutes at a time and ECONNRESET is routine;
+     * losing an hour of work to one is not acceptable.
+     */
+    const send = async (): Promise<Response> => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          return await fetch(url, {
+            ...init,
+            headers: {
+              "Content-Type": "application/json",
+              ...init.headers,
+              Authorization: `Bearer ${this.accessToken}`,
+            },
+          });
+        } catch (err) {
+          lastError = err;
+          if (attempt === MAX_RETRIES) break;
+          await new Promise((r) => setTimeout(r, BASE_BACKOFF_MS * 2 ** attempt));
+        }
+      }
+      throw lastError;
+    };
 
     let res = await send();
 
