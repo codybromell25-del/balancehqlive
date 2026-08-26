@@ -8,6 +8,8 @@ import { Heatmap, type HeatCell } from "./heatmap";
 import { AtRisk, PerformanceTable, type AtRiskMember, type PerfRow } from "./tables";
 import { MembershipTrend, Cohorts, type MonthPoint, type CohortCell } from "./membership";
 import { LifecycleBar, CancellationBreakdown, type Lifecycle, type Cancellations } from "./lifecycle";
+import { RevenueTrend, type RevenuePoint } from "./revenue";
+import { MixBar, IntroFunnel, type RevenueMix, type IntroOffers } from "./revenue-panels";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +80,15 @@ export default async function DashboardPage({
   // Aggregation happens in Postgres. Fetching daily rows and summing them
   // here hit PostgREST's 1000-row cap, which silently truncated a 12-month
   // window across seven locations and reported totals that were simply wrong.
+  // dashboard_revenue keys off the location name Momence records on the sale,
+  // not our numeric id — sales and sessions arrive from different endpoints
+  // with no shared location key.
+  const siteNameFilter =
+    selected === "all"
+      ? null
+      : ((await db.from("locations").select("name")
+            .eq("momence_location_id", Number(selected)).maybeSingle()).data?.name ?? null);
+
   const [
     { data: current },
     { data: previous },
@@ -89,6 +100,9 @@ export default async function DashboardPage({
     { data: lifecycle },
     { data: cancellations },
     { data: firstClass },
+    { data: revenue },
+    { data: revMix },
+    { data: intro },
     { data: freshness },
     { data: studio },
     { data: locations },
@@ -104,6 +118,9 @@ export default async function DashboardPage({
       db.rpc("dashboard_lifecycle", {}),
       db.rpc("dashboard_cancellations", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
       db.rpc("dashboard_first_class", { p_from: iso(yearAgo), p_to: iso(to) }),
+      db.rpc("dashboard_revenue", { p_from: iso(from), p_to: iso(to), p_location: siteNameFilter }),
+      db.rpc("dashboard_revenue_mix", { p_from: iso(from), p_to: iso(to) }),
+      db.rpc("dashboard_intro_offers", { p_from: iso(yearAgo), p_to: iso(to), p_mature_days: 60 }),
       db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
       db.from("studios").select("name, currency").limit(1).maybeSingle(),
       db.from("locations").select("momence_location_id, name").order("name"),
@@ -194,6 +211,10 @@ export default async function DashboardPage({
   }));
 
   const atRiskRows = (atRisk ?? []) as AtRiskMember[];
+  const rev = revenue as { revenue?: number; trend?: RevenuePoint[]; by_location?: { name: string; revenue: number; sales: number }[]; by_item?: { name: string; revenue: number; sales: number }[] } | null;
+  const mix = revMix as RevenueMix | null;
+  const intros = intro as IntroOffers | null;
+  const ccy = studio?.currency ?? "EUR";
   const monthRows = (membership ?? []) as MonthPoint[];
   const cohortRows = (cohorts ?? []) as CohortCell[];
   const stages = lifecycle as Lifecycle | null;
@@ -271,6 +292,44 @@ export default async function DashboardPage({
           </div>
         ))}
       </section>
+
+      {rev && Number(rev.revenue) > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Revenue</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Money taken, net of refunds. Credit spent on classes is excluded — it
+            was counted when the credit was bought.
+          </p>
+          <RevenueTrend data={rev.trend ?? []} currency={ccy} />
+          {(rev.by_item ?? []).length > 0 && (
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <RevenueList title="By location" rows={rev.by_location ?? []} currency={ccy} />
+              <RevenueList title="Top sellers" rows={(rev.by_item ?? []).slice(0, 8)} currency={ccy} />
+            </div>
+          )}
+        </section>
+      )}
+
+      {mix && Number(mix.total) > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">What the money is made of</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            The membership share is how much of next month you can already count on.
+          </p>
+          <MixBar data={mix} currency={ccy} />
+        </section>
+      )}
+
+      {intros && intros.intros > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Intro offers, and who stayed</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Everyone who bought an intro offer in the last year, and whether they
+            bought anything afterwards.
+          </p>
+          <IntroFunnel data={intros} currency={ccy} />
+        </section>
+      )}
 
       <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <h2 className="text-sm font-semibold">Attendance against capacity</h2>
@@ -381,6 +440,41 @@ export default async function DashboardPage({
         </section>
       )}
     </main>
+  );
+}
+
+function RevenueList({
+  title,
+  rows,
+  currency,
+}: {
+  title: string;
+  rows: { name: string; revenue: number; sales: number }[];
+  currency: string;
+}) {
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-IE", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
+  const top = Math.max(...rows.map((r) => Number(r.revenue)), 1);
+  return (
+    <div>
+      <h3 className="mb-2 text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+      <table className="w-full text-sm">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.name} className="border-t border-[var(--border)] first:border-0">
+              <td className="py-1.5 pr-3">{r.name.replace(/^balance\s*-\s*/i, "")}</td>
+              <td className="w-24 py-1.5">
+                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--chip)]">
+                  <div className="h-full rounded-full"
+                    style={{ width: `${(Number(r.revenue) / top) * 100}%`, background: "var(--accent)" }} />
+                </div>
+              </td>
+              <td className="py-1.5 pl-3 text-right tabular-nums">{fmt(Number(r.revenue))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
