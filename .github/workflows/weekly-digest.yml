@@ -1,0 +1,35 @@
+name: Weekly digest
+
+# Monday morning, before the studio opens. GitHub delays scheduled runs
+# under load, which is tolerable for a weekly summary.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send the weekly digest
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          code=$(curl -sS --max-time 120 -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/weekly-digest") || {
+              echo "::error::could not reach $APP_URL"; exit 1; }
+          echo "HTTP $code"
+          cat /tmp/body
+          echo
+          case "$code" in
+            2*) ;;
+            401) echo "::error::CRON_SECRET does not match the value in Vercel"; exit 1 ;;
+            *)   echo "::error::unexpected HTTP $code from the digest endpoint"; exit 1 ;;
+          esac
+          # "skipped" means the digest rendered but no email provider is set.
+          if grep -q '"skipped"' /tmp/body; then
+            echo "::warning::digest generated but not emailed - RESEND_API_KEY / DIGEST_TO not set"
+          fi

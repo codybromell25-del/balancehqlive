@@ -51,19 +51,20 @@ as $$
         trim(coalesce(m.first_name, '') || ' ' || coalesce(m.last_name, '')) as name,
         m.email,
         a.visits,
-        a.last_visit::date as last_visit,
-        (current_date - a.last_visit::date) as days_quiet,
+        -- member_activity exposes these as first_booking / last_booking.
+        a.last_booking::date as last_visit,
+        (current_date - a.last_booking::date) as days_quiet,
         round(
           a.visits::numeric
-          / greatest(1, (a.last_visit::date - a.first_visit::date) / 30.0), 1
+          / greatest(1, (a.last_booking::date - a.first_booking::date) / 30.0), 1
         ) as visits_per_month
       from member_activity a
       join members m
         on m.studio_id = a.studio_id
        and m.momence_member_id = a.member_id
       where a.visits >= p_min_visits
-        and a.last_visit < now() - make_interval(days => p_quiet_days)
-        and a.last_visit > now() - make_interval(days => p_max_days)
+        and a.last_booking < now() - make_interval(days => p_quiet_days)
+        and a.last_booking > now() - make_interval(days => p_max_days)
       limit p_limit
     ) r
   ) else '[]'::jsonb end;
