@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { userClient } from "@/lib/db";
 import { FreshnessStrip } from "./freshness-strip";
 import { Filters } from "./filters";
-import { Ask } from "./ask";
 import { PERIODS, DEFAULT_PERIOD } from "./periods";
 import { AttendanceTrend, LocationComparison, type TrendPoint } from "./charts";
 import { Heatmap, type HeatCell } from "./heatmap";
@@ -263,9 +262,6 @@ export default async function DashboardPage({
       </div>
 
       {freshness && <FreshnessStrip freshness={freshness} />}
-
-      <div className="mt-4" />
-      <Ask />
 
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
         {metrics.map((m) => (
