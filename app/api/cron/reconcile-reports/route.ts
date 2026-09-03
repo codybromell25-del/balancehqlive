@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { serviceClient } from "@/lib/db";
 import { collectReport } from "@/lib/momence/reports";
 import { project, type MomenceEvent } from "@/lib/momence/projectors";
+import { syncCancellations } from "@/lib/momence/sync-cancellations";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -98,9 +99,24 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 3. Refresh cancelled classes --------------------------------------
+  // No webhook reports a class cancellation, so the flag only moves when we
+  // poll for it.
+  const cancellations: Record<string, unknown>[] = [];
+  const { data: studios } = await db.from("studios").select("id, slug").eq("is_active", true);
+
+  for (const studio of studios ?? []) {
+    try {
+      cancellations.push({ studio: studio.slug, ...(await syncCancellations(studio.id)) });
+    } catch (err) {
+      cancellations.push({ studio: studio.slug, error: String(err).slice(0, 160) });
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     events: { replayed, stillFailing },
     reports: { collected, abandoned },
+    cancellations,
   });
 }
