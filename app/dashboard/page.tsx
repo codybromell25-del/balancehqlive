@@ -8,6 +8,7 @@ import { Heatmap, type HeatCell } from "./heatmap";
 import { AtRisk, PerformanceTable, type AtRiskMember, type PerfRow } from "./tables";
 import { MembershipTrend, Cohorts, type MonthPoint, type CohortCell } from "./membership";
 import { LifecycleBar, CancellationBreakdown, type Lifecycle, type Cancellations } from "./lifecycle";
+import { Cancelled, type CancelledClasses } from "./cancelled";
 import { RevenueTrend, type RevenuePoint } from "./revenue";
 import { MixBar, IntroFunnel, type RevenueMix, type IntroOffers } from "./revenue-panels";
 
@@ -99,6 +100,7 @@ export default async function DashboardPage({
     { data: cohorts },
     { data: lifecycle },
     { data: cancellations },
+    { data: cancelledClasses },
     { data: firstClass },
     { data: revenue },
     { data: revMix },
@@ -117,6 +119,7 @@ export default async function DashboardPage({
       db.rpc("dashboard_cohorts", { p_months: 9 }),
       db.rpc("dashboard_lifecycle", {}),
       db.rpc("dashboard_cancellations", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
+      db.rpc("dashboard_cancelled_classes", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
       db.rpc("dashboard_first_class", { p_from: iso(yearAgo), p_to: iso(to) }),
       db.rpc("dashboard_revenue", { p_from: iso(from), p_to: iso(to), p_location: siteNameFilter }),
       db.rpc("dashboard_revenue_mix", { p_from: iso(from), p_to: iso(to) }),
@@ -222,6 +225,7 @@ export default async function DashboardPage({
   const cohortRows = (cohorts ?? []) as CohortCell[];
   const stages = lifecycle as Lifecycle | null;
   const cancels = cancellations as Cancellations | null;
+  const pulled = cancelledClasses as CancelledClasses | null;
   const fc = (firstClass ?? {}) as {
     total_first_timers?: number;
     returned?: number;
@@ -391,6 +395,17 @@ export default async function DashboardPage({
             <ConversionTable rows={fc.by_class ?? []} label="Class" />
             <ConversionTable rows={fc.by_teacher ?? []} label="First taught by" />
           </div>
+        </section>
+      )}
+
+      {pulled && pulled.total > 0 && (
+        <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold">Classes you cancelled</h2>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
+            Classes pulled from the schedule, and how many were booked in at the
+            time. Three or more falls outside the two-or-fewer rule.
+          </p>
+          <Cancelled data={pulled} />
         </section>
       )}
 
