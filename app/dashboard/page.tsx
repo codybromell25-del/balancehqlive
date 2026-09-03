@@ -51,12 +51,27 @@ function pctChange(current: number, previous: number) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ location?: string; period?: string }>;
+  searchParams: Promise<{
+    location?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
-  const { location, period } = await searchParams;
-  const selected = location ?? "all";
-  const periodKey = PERIODS.some((p) => p.key === period) ? period! : DEFAULT_PERIOD;
-  const WINDOW = PERIODS.find((p) => p.key === periodKey)!.days;
+  const sp = await searchParams;
+  const selected = sp.location ?? "all";
+
+  // A custom range wins when both dates are present and well formed; anything
+  // else falls back to a preset, so a hand-edited URL degrades rather than
+  // throwing.
+  const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+  const customRange = sp.period === "custom" && isDate(sp.from) && isDate(sp.to);
+
+  const periodKey = customRange
+    ? "custom"
+    : PERIODS.some((p) => p.key === sp.period)
+      ? sp.period!
+      : DEFAULT_PERIOD;
   const db = await userClient();
 
   const {
@@ -67,8 +82,16 @@ export default async function DashboardPage({
     return <Empty title="Sign in to continue" body="Your studio's numbers are behind a login." />;
   }
 
-  const to = new Date();
-  const from = new Date(to.getTime() - (WINDOW - 1) * 86_400_000);
+  const to = customRange ? new Date(`${sp.to}T00:00:00Z`) : new Date();
+  const from = customRange
+    ? new Date(`${sp.from}T00:00:00Z`)
+    : new Date(to.getTime() - (PERIODS.find((p) => p.key === periodKey)!.days - 1) * 86_400_000);
+
+  // Inclusive of both ends, so a single day is one day rather than zero.
+  const WINDOW = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1);
+
+  // The comparison is always the equal-length window immediately before,
+  // whether the range came from a preset or was picked by hand.
   const priorTo = new Date(from.getTime() - 86_400_000);
   const priorFrom = new Date(priorTo.getTime() - (WINDOW - 1) * 86_400_000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -249,8 +272,10 @@ export default async function DashboardPage({
             )}
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {PERIODS.find((p) => p.key === periodKey)!.label}, compared with the{" "}
-            {WINDOW} days before.
+            {customRange
+              ? `${new Date(from).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })} to ${new Date(to).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}`
+              : PERIODS.find((p) => p.key === periodKey)!.label}
+            , compared with the {WINDOW} days before.
           </p>
         </div>
       </header>
@@ -261,6 +286,8 @@ export default async function DashboardPage({
           locations={haveLocationGrain ? sites : []}
           location={selected}
           period={periodKey}
+          from={iso(from)}
+          to={iso(to)}
         />
         </Suspense>
       </div>
