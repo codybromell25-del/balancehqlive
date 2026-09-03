@@ -61,17 +61,22 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const selected = sp.location ?? "all";
 
-  // A custom range wins when both dates are present and well formed; anything
-  // else falls back to a preset, so a hand-edited URL degrades rather than
-  // throwing.
   const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
-  const customRange = sp.period === "custom" && isDate(sp.from) && isDate(sp.to);
 
-  const periodKey = customRange
-    ? "custom"
-    : PERIODS.some((p) => p.key === sp.period)
-      ? sp.period!
-      : DEFAULT_PERIOD;
+  // "custom" is a valid period on its own — selecting it is what reveals the
+  // date inputs, and no dates exist until the user picks some. Requiring them
+  // here meant the first click fell back to the default and the inputs never
+  // appeared.
+  const periodKey =
+    sp.period === "custom"
+      ? "custom"
+      : PERIODS.some((p) => p.key === sp.period)
+        ? sp.period!
+        : DEFAULT_PERIOD;
+
+  // Only drive the query off explicit dates once both are present and valid,
+  // so a hand-edited URL degrades to the default window rather than throwing.
+  const customRange = periodKey === "custom" && isDate(sp.from) && isDate(sp.to);
   const db = await userClient();
 
   const {
@@ -82,10 +87,16 @@ export default async function DashboardPage({
     return <Empty title="Sign in to continue" body="Your studio's numbers are behind a login." />;
   }
 
+  // Until a range is applied, custom shows the same window as the default
+  // preset, so the page has something sensible on it while the inputs sit open.
+  const fallbackDays =
+    PERIODS.find((p) => p.key === periodKey)?.days ??
+    PERIODS.find((p) => p.key === DEFAULT_PERIOD)!.days;
+
   const to = customRange ? new Date(`${sp.to}T00:00:00Z`) : new Date();
   const from = customRange
     ? new Date(`${sp.from}T00:00:00Z`)
-    : new Date(to.getTime() - (PERIODS.find((p) => p.key === periodKey)!.days - 1) * 86_400_000);
+    : new Date(to.getTime() - (fallbackDays - 1) * 86_400_000);
 
   // Inclusive of both ends, so a single day is one day rather than zero.
   const WINDOW = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1);
@@ -274,7 +285,7 @@ export default async function DashboardPage({
           <p className="mt-1 text-sm text-[var(--text-muted)]">
             {customRange
               ? `${new Date(from).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })} to ${new Date(to).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}`
-              : PERIODS.find((p) => p.key === periodKey)!.label}
+              : (PERIODS.find((p) => p.key === periodKey)?.label ?? "Pick a date range")}
             , compared with the {WINDOW} days before.
           </p>
         </div>
