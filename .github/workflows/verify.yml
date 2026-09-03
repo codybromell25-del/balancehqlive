@@ -1,0 +1,38 @@
+name: Verify the data
+
+# Every morning, and after each reconcile-heavy part of the day. Catches the
+# failure mode this platform has actually had three times: a number that looks
+# plausible but is wrong.
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check our numbers against Momence
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          code=$(curl -sS --max-time 120 -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/verify") || {
+              echo "::error::could not reach $APP_URL"; exit 1; }
+
+          python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/body"))
+          for c in d.get("checks", []):
+              print(f"{'PASS' if c['ok'] else 'FAIL'}  {c['name']}: {c['detail']}")
+          PY
+
+          case "$code" in
+            200) echo "All checks passed." ;;
+            409) echo "::error::The dashboard disagrees with Momence — see the failures above"; exit 1 ;;
+            401) echo "::error::CRON_SECRET does not match Vercel"; exit 1 ;;
+            *)   echo "::error::unexpected HTTP $code"; exit 1 ;;
+          esac
