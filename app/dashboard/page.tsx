@@ -9,6 +9,7 @@ import { AtRisk, PerformanceTable, type AtRiskMember, type PerfRow } from "./tab
 import { MembershipTrend, Cohorts, type MonthPoint, type CohortCell } from "./membership";
 import { LifecycleBar, CancellationBreakdown, type Lifecycle, type Cancellations } from "./lifecycle";
 import { Cancelled, type CancelledClasses } from "./cancelled";
+import { VerificationBanner, type Verification } from "./verification-banner";
 import { RevenueTrend, type RevenuePoint } from "./revenue";
 import { MixBar, IntroFunnel, type RevenueMix, type IntroOffers } from "./revenue-panels";
 
@@ -142,6 +143,7 @@ export default async function DashboardPage({
     { data: freshness },
     { data: studio },
     { data: locations },
+    { data: verification },
   ] =
     await Promise.all([
       db.rpc("dashboard_summary", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
@@ -161,6 +163,7 @@ export default async function DashboardPage({
       db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
       db.from("studios").select("name, currency").limit(1).maybeSingle(),
       db.from("locations").select("momence_location_id, name").order("name"),
+      db.from("kpi_verification").select("*").limit(1).maybeSingle(),
     ]);
 
   const now = (current ?? {}) as Summary;
@@ -302,6 +305,8 @@ export default async function DashboardPage({
         />
         </Suspense>
       </div>
+
+      <VerificationBanner data={(verification ?? null) as Verification | null} />
 
       {freshness && <FreshnessStrip freshness={freshness} />}
 

@@ -134,6 +134,18 @@ export async function GET(req: NextRequest) {
 
   const failed = checks.filter((c) => !c.ok);
 
+  // Record it, so the dashboard can say whether it still trusts itself
+  // rather than that only living in a CI log the owner never opens.
+  for (const studio of studios ?? []) {
+    const mine = checks.filter((c) => c.name.startsWith(`${studio.slug}:`));
+    await db.from("verification_runs").insert({
+      studio_id: studio.id,
+      passed: mine.every((c) => c.ok),
+      failed_count: mine.filter((c) => !c.ok).length,
+      checks: mine,
+    });
+  }
+
   return NextResponse.json(
     {
       ok: failed.length === 0,
