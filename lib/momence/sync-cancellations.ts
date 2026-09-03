@@ -16,11 +16,19 @@ import { MomenceClient } from "./client";
  */
 
 const LOOK_BACK_DAYS = 3;
-const LOOK_AHEAD_DAYS = 10;
+const LOOK_AHEAD_DAYS = 45;
 
 interface Session {
   id: number;
   isCancelled: boolean;
+  name: string | null;
+  type: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  capacity: number | null;
+  durationInMinutes: number | null;
+  teacher: { id: number; firstName?: string; lastName?: string } | null;
+  inPersonLocation: { id: number; name: string } | null;
 }
 
 interface Booking {
@@ -55,6 +63,34 @@ export async function syncCancellations(studioId: string): Promise<{
     if (live.length >= res.pagination.totalCount || res.payload.length === 0) break;
   }
 
+  // Upsert every session in the window, not just the cancelled ones.
+  //
+  // session-created only fires for classes created after the integration was
+  // connected, so classes already on the timetable never arrive by webhook.
+  // The original backfill also stopped at the day it ran, missing everything
+  // already scheduled ahead of it — 251 classes in 28 days, which read as a
+  // 31% collapse in the numbers. Refreshing the window on every reconcile
+  // means that gap closes itself rather than needing a manual backfill.
+  const now2 = new Date().toISOString();
+  for (let i = 0; i < live.length; i += 200) {
+    const batch = live.slice(i, i + 200).map((s) => ({
+      studio_id: studioId,
+      momence_session_id: s.id,
+      name: s.name,
+      session_type: s.type,
+      momence_location_id: s.inPersonLocation?.id ?? null,
+      teacher_id: s.teacher?.id ?? null,
+      teacher_name: [s.teacher?.firstName, s.teacher?.lastName].filter(Boolean).join(" ") || null,
+      starts_at: s.startsAt,
+      ends_at: s.endsAt,
+      capacity: s.capacity,
+      duration_minutes: s.durationInMinutes,
+      cancelled: s.isCancelled,
+      updated_at: now2,
+    }));
+    await db.from("sessions").upsert(batch, { onConflict: "studio_id,momence_session_id" });
+  }
+
   const cancelledIds = live.filter((s) => s.isCancelled).map((s) => s.id);
 
   // What we already knew, so only genuinely new cancellations cost a
@@ -69,27 +105,9 @@ export async function syncCancellations(studioId: string): Promise<{
   const alreadyKnown = new Set((known ?? []).map((r) => r.momence_session_id));
   const fresh = cancelledIds.filter((id) => !alreadyKnown.has(id));
 
-  const now = new Date().toISOString();
-
-  if (cancelledIds.length) {
-    await db
-      .from("sessions")
-      .update({ cancelled: true, updated_at: now })
-      .eq("studio_id", studioId)
-      .in("momence_session_id", cancelledIds);
-  }
-
-  // A class can be reinstated; clear the flag on anything the API no longer
-  // reports as cancelled within the window.
-  const activeIds = live.filter((s) => !s.isCancelled).map((s) => s.id);
-  if (activeIds.length) {
-    await db
-      .from("sessions")
-      .update({ cancelled: false, updated_at: now })
-      .eq("studio_id", studioId)
-      .eq("cancelled", true)
-      .in("momence_session_id", activeIds);
-  }
+  // The upsert above already carries the current cancelled flag both ways,
+  // including reinstatements.
+  const now = now2;
 
   let bookingsRecovered = 0;
   for (const id of fresh) {

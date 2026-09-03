@@ -67,8 +67,14 @@ async function main() {
   if (error || !studio) throw new Error(`Studio ${slug} not found`);
 
   const client = await MomenceClient.forStudio(studio.id);
-  const to = new Date();
-  const from = new Date(to.getTime() - days * 86_400_000);
+
+  // Forward window matters: classes are scheduled weeks ahead, and a backfill
+  // that stops at "now" misses every already-scheduled future class. Those
+  // never arrive by webhook either, because session-created only fires when a
+  // class is created — not for ones that already existed.
+  const forwardDays = Number(arg("forward", "0"));
+  const to = new Date(Date.now() + forwardDays * 86_400_000);
+  const from = new Date(Date.now() - days * 86_400_000);
 
   console.log(`\nBackfilling ${studio.name} — ${days} days from ${from.toISOString().slice(0, 10)}\n`);
 
