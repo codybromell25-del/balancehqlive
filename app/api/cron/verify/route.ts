@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serviceClient } from "@/lib/db";
 import { MomenceClient } from "@/lib/momence/client";
+import { pruneDeletedSessions } from "@/lib/momence/sync-cancellations";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -71,6 +72,26 @@ export async function GET(req: NextRequest) {
         name: `${studio.slug}: ${label}`,
         ok: drift <= TOLERANCE,
         detail: `Momence ${theirs}, ours ${ours} (${ours - theirs >= 0 ? "+" : ""}${ours - theirs})`,
+      });
+    }
+
+    // --- 1b. Drop anything Momence has deleted ---------------------------
+    // Done before the counts are compared, so the check reflects the state
+    // after cleanup rather than reporting drift it has just resolved.
+    try {
+      const pruned = await pruneDeletedSessions(studio.id);
+      if (pruned.removed > 0 || pruned.skipped) {
+        checks.push({
+          name: `${studio.slug}: deleted classes removed`,
+          ok: !pruned.skipped,
+          detail: pruned.skipped ?? `removed ${pruned.removed} of ${pruned.held}`,
+        });
+      }
+    } catch (err) {
+      checks.push({
+        name: `${studio.slug}: deleted classes removed`,
+        ok: false,
+        detail: String(err).slice(0, 140),
       });
     }
 

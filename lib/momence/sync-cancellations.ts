@@ -42,7 +42,6 @@ export async function syncCancellations(studioId: string): Promise<{
   checked: number;
   newlyCancelled: number;
   bookingsRecovered: number;
-  removed: number;
 }> {
   const db = serviceClient();
   const client = await MomenceClient.forStudio(studioId);
@@ -141,56 +140,97 @@ export async function syncCancellations(studioId: string): Promise<{
     }
   }
 
-  // ---- Remove classes Momence no longer has ------------------------------
-  //
-  // A class can leave Momence two ways. Cancelled keeps the record with
-  // isCancelled set, which the upsert above handles. Deleted removes it
-  // outright, and no webhook reports that — so without this the row sits in
-  // our data forever, inflating class counts and diluting fill rate with
-  // capacity nobody could book.
-  //
-  // Only ever runs on a complete, successful fetch: a partial page set would
-  // make every unfetched class look deleted.
-  let removed = 0;
-  const fetchedEverything = expected > 0 && live.length >= expected;
+  return { checked: live.length, newlyCancelled: fresh.length, bookingsRecovered };
+}
 
-  if (fetchedEverything) {
-    const liveIds = new Set(live.map((s) => s.id));
 
-    const { data: held } = await db
+/**
+ * Delete classes Momence no longer has.
+ *
+ * A class leaves Momence two ways. Cancelled keeps the record with
+ * isCancelled set, which syncCancellations handles. Deleted removes it
+ * outright, and no webhook reports that — so the row sits here forever,
+ * inflating class counts and diluting fill rate with capacity nobody could
+ * book.
+ *
+ * Run daily rather than every quarter hour: deletions are rare, and the wide
+ * window this needs is far too many API pages to fetch continuously.
+ */
+export async function pruneDeletedSessions(
+  studioId: string,
+  backDays = 35,
+  forwardDays = 45,
+): Promise<{ held: number; live: number; removed: number; skipped?: string }> {
+  const db = serviceClient();
+  const client = await MomenceClient.forStudio(studioId);
+
+  const from = new Date(Date.now() - backDays * 86_400_000);
+  const to = new Date(Date.now() + forwardDays * 86_400_000);
+
+  const liveIds = new Set<number>();
+  let expected = 0;
+  for (let page = 0; page < 40; page++) {
+    const res = await client.request<{
+      payload: { id: number }[];
+      pagination: { totalCount: number };
+    }>(
+      `/api/v2/host/sessions?page=${page}&pageSize=200` +
+        `&startAfter=${from.toISOString()}&startBefore=${to.toISOString()}` +
+        `&includeCancelled=true`,
+    );
+    expected = res.pagination.totalCount;
+    res.payload.forEach((s) => liveIds.add(s.id));
+    if (liveIds.size >= expected || res.payload.length === 0) break;
+  }
+
+  // A partial fetch would make every unfetched class look deleted.
+  if (!expected || liveIds.size < expected) {
+    return { held: 0, live: liveIds.size, removed: 0, skipped: "incomplete fetch from Momence" };
+  }
+
+  // PostgREST caps a response at 1000 rows. Reading our own side without
+  // paging is exactly how a previous version of this silently compared a
+  // fraction of the window and concluded nothing had changed.
+  const held: number[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db
       .from("sessions")
       .select("momence_session_id")
       .eq("studio_id", studioId)
       .gte("starts_at", from.toISOString())
-      .lt("starts_at", to.toISOString());
-
-    const gone = (held ?? [])
-      .map((r) => r.momence_session_id as number)
-      .filter((id) => !liveIds.has(id));
-
-    // A sane ceiling. If a large share of the window suddenly looks deleted,
-    // that is far more likely to be an API or query fault than the studio
-    // deleting half its timetable, and deleting on that basis is unrecoverable.
-    const tooMany = gone.length > Math.max(50, live.length * 0.2);
-
-    if (gone.length && !tooMany) {
-      // Bookings first: session_bookings has no foreign key to sessions, so
-      // nothing would clean them up and they would keep counting.
-      await db
-        .from("session_bookings")
-        .delete()
-        .eq("studio_id", studioId)
-        .in("momence_session_id", gone);
-
-      const { error } = await db
-        .from("sessions")
-        .delete()
-        .eq("studio_id", studioId)
-        .in("momence_session_id", gone);
-
-      if (!error) removed = gone.length;
-    }
+      .lt("starts_at", to.toISOString())
+      .order("momence_session_id")
+      .range(offset, offset + 999);
+    if (error) throw error;
+    held.push(...(data ?? []).map((r) => r.momence_session_id as number));
+    if (!data || data.length < 1000) break;
   }
 
-  return { checked: live.length, newlyCancelled: fresh.length, bookingsRecovered, removed };
+  const gone = held.filter((id) => !liveIds.has(id));
+
+  // If a large share of the window suddenly looks deleted, that is far more
+  // likely to be an API or query fault than a studio removing its timetable —
+  // and a wrong deletion is unrecoverable.
+  if (gone.length > Math.max(60, held.length * 0.2)) {
+    return {
+      held: held.length,
+      live: liveIds.size,
+      removed: 0,
+      skipped: `${gone.length} of ${held.length} looked deleted — refusing`,
+    };
+  }
+
+  let removed = 0;
+  for (let i = 0; i < gone.length; i += 200) {
+    const batch = gone.slice(i, i + 200);
+    // Bookings first: session_bookings has no foreign key to sessions, so
+    // nothing else would clean them up and they would keep counting.
+    await db.from("session_bookings").delete()
+      .eq("studio_id", studioId).in("momence_session_id", batch);
+    const { error } = await db.from("sessions").delete()
+      .eq("studio_id", studioId).in("momence_session_id", batch);
+    if (!error) removed += batch.length;
+  }
+
+  return { held: held.length, live: liveIds.size, removed };
 }
