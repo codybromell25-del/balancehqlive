@@ -42,7 +42,28 @@ export async function GET(req: NextRequest) {
   for (const studio of studios ?? []) {
     const client = await MomenceClient.forStudio(studio.id);
 
-    // --- 1. Do we hold the same classes Momence does? --------------------
+    // --- 1. Drop anything Momence has deleted ----------------------------
+    // Runs before the counts, so a run that finds and fixes drift reports
+    // the corrected state rather than failing on something it just resolved.
+    try {
+      const pruned = await pruneDeletedSessions(studio.id);
+      if (pruned.removed > 0 || pruned.skipped) {
+        checks.push({
+          name: `${studio.slug}: deleted classes removed`,
+          ok: !pruned.skipped,
+          detail: pruned.skipped ?? `removed ${pruned.removed} of ${pruned.held}`,
+        });
+      }
+    } catch (err) {
+      checks.push({
+        name: `${studio.slug}: deleted classes removed`,
+        ok: false,
+        detail: String(err).slice(0, 140),
+      });
+    }
+
+
+    // --- 2. Do we hold the same classes Momence does? --------------------
     // Checked across a recent window and a forward one, because the two
     // failure modes differ: history stops being imported, or the schedule
     // ahead never arrives.
@@ -75,27 +96,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // --- 1b. Drop anything Momence has deleted ---------------------------
-    // Done before the counts are compared, so the check reflects the state
-    // after cleanup rather than reporting drift it has just resolved.
-    try {
-      const pruned = await pruneDeletedSessions(studio.id);
-      if (pruned.removed > 0 || pruned.skipped) {
-        checks.push({
-          name: `${studio.slug}: deleted classes removed`,
-          ok: !pruned.skipped,
-          detail: pruned.skipped ?? `removed ${pruned.removed} of ${pruned.held}`,
-        });
-      }
-    } catch (err) {
-      checks.push({
-        name: `${studio.slug}: deleted classes removed`,
-        ok: false,
-        detail: String(err).slice(0, 140),
-      });
-    }
-
-    // --- 2. Members ------------------------------------------------------
+    // --- 3. Members ------------------------------------------------------
     const mem = await client.request<{ pagination: { totalCount: number } }>(
       "/api/v2/host/members?page=0&pageSize=1",
     );
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
       detail: `Momence ${mem.pagination.totalCount}, ours ${ourMembers}`,
     });
 
-    // --- 3. Do our own numbers agree with each other? --------------------
+    // --- 4. Do our own numbers agree with each other? --------------------
     // The revenue tile and the revenue panel read different functions. They
     // disagreed by 80x once, and nothing noticed.
     const to = new Date().toISOString().slice(0, 10);
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
       detail: `tile ${a.toFixed(2)}, panel ${b.toFixed(2)}`,
     });
 
-    // --- 4. Is anything stuck? -------------------------------------------
+    // --- 5. Is anything stuck? -------------------------------------------
     const { data: fresh } = await db
       .from("kpi_data_freshness").select("*").eq("studio_id", studio.id).maybeSingle();
 
