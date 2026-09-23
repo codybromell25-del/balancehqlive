@@ -100,16 +100,26 @@ export async function GET(req: NextRequest) {
   }
 
   // ---- 3. Refresh cancelled classes --------------------------------------
+  //
   // No webhook reports a class cancellation, so the flag only moves when we
-  // poll for it.
+  // poll for it. Sweeping 48 days of sessions takes long enough that doing it
+  // on every 15-minute run pushed the whole route past Vercel's 60-second
+  // ceiling, which failed the job and stopped reconciliation entirely.
+  //
+  // Hourly is ample: a class cancelled on the day still lands within the hour,
+  // and the other work in this route — replaying failed projections — keeps
+  // running every 15 minutes regardless.
   const cancellations: Record<string, unknown>[] = [];
-  const { data: studios } = await db.from("studios").select("id, slug").eq("is_active", true);
+  const dueForSessionSweep = new Date().getMinutes() < 15;
 
-  for (const studio of studios ?? []) {
-    try {
-      cancellations.push({ studio: studio.slug, ...(await syncCancellations(studio.id)) });
-    } catch (err) {
-      cancellations.push({ studio: studio.slug, error: String(err).slice(0, 160) });
+  if (dueForSessionSweep) {
+    const { data: studios } = await db.from("studios").select("id, slug").eq("is_active", true);
+    for (const studio of studios ?? []) {
+      try {
+        cancellations.push({ studio: studio.slug, ...(await syncCancellations(studio.id)) });
+      } catch (err) {
+        cancellations.push({ studio: studio.slug, error: String(err).slice(0, 160) });
+      }
     }
   }
 
@@ -117,6 +127,6 @@ export async function GET(req: NextRequest) {
     ok: true,
     events: { replayed, stillFailing },
     reports: { collected, abandoned },
-    cancellations,
+    cancellations: dueForSessionSweep ? cancellations : "skipped this run",
   });
 }

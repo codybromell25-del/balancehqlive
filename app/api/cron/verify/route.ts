@@ -40,7 +40,30 @@ export async function GET(req: NextRequest) {
     .from("studios").select("id, slug").eq("is_active", true);
 
   for (const studio of studios ?? []) {
-    const client = await MomenceClient.forStudio(studio.id);
+    // Everything below needs Momence. If the connection is gone, say so as a
+    // named failure rather than throwing a 500 — a crash tells the operator
+    // nothing, and this is the one failure that needs a human in a browser.
+    let client;
+    try {
+      client = await MomenceClient.forStudio(studio.id);
+      await client.request("/api/v2/auth/profile");
+    } catch (err) {
+      const detail = String(err);
+      checks.push({
+        name: `${studio.slug}: Momence connection`,
+        ok: false,
+        detail: /refresh token is invalid|invalid_grant|NeedsAuthorization/.test(detail)
+          ? "expired — re-authorise at /api/momence/authorize?studio=" + studio.slug
+          : detail.slice(0, 160),
+      });
+      continue;
+    }
+
+    checks.push({
+      name: `${studio.slug}: Momence connection`,
+      ok: true,
+      detail: "authenticated",
+    });
 
     // --- 1. Drop anything Momence has deleted ----------------------------
     // Runs before the counts, so a run that finds and fixes drift reports

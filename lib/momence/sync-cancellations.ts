@@ -16,7 +16,9 @@ import { MomenceClient } from "./client";
  */
 
 const LOOK_BACK_DAYS = 3;
-const LOOK_AHEAD_DAYS = 45;
+// The daily prune covers the wide window; this only needs to catch
+// same-week churn, and a narrower sweep keeps the route inside its budget.
+const LOOK_AHEAD_DAYS = 21;
 
 interface Session {
   id: number;

@@ -94,5 +94,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, hour, results });
+  // A 200 here while every studio errored is how a dead integration shows a
+  // green tick in the scheduler for days. The Momence connection expiring is
+  // exactly that case: report generation fails for every studio and nothing
+  // upstream notices.
+  const errored = results.filter((r) => r.error).length;
+  const allFailed = results.length > 0 && errored === results.length;
+
+  return NextResponse.json(
+    { ok: !allFailed, hour, errored, results },
+    { status: allFailed ? 502 : 200 },
+  );
 }
