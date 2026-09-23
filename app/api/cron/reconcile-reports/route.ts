@@ -127,10 +127,13 @@ export async function GET(req: NextRequest) {
   // and the other work in this route — replaying failed projections — keeps
   // running every 15 minutes regardless.
   const cancellations: Record<string, unknown>[] = [];
-  // Skip the sweep entirely when the replay has already used the budget;
-  // draining a backlog matters more than refreshing the schedule this hour.
+  // The sweep needs most of a minute of its own, so it only starts with real
+  // headroom left — not merely "inside the budget", which let it begin with
+  // seconds to spare and blow through the ceiling anyway. Draining a backlog
+  // matters more than refreshing the schedule this hour.
+  const SWEEP_NEEDS_MS = 30_000;
   const dueForSessionSweep =
-    new Date().getMinutes() < 15 && Date.now() - startedAt < TIME_BUDGET_MS;
+    new Date().getMinutes() < 15 && Date.now() - startedAt < TIME_BUDGET_MS - SWEEP_NEEDS_MS;
 
   if (dueForSessionSweep) {
     const { data: studios } = await db.from("studios").select("id, slug").eq("is_active", true);
