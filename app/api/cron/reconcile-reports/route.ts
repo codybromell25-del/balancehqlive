@@ -21,11 +21,19 @@ export const maxDuration = 60;
 const STALE_AFTER_MINUTES = 20;
 const ABANDON_AFTER_HOURS = 6;
 
+/**
+ * Vercel kills the function at 60s. Stopping at 45 leaves room to finish the
+ * work in flight and return a useful response — a timeout returns nothing at
+ * all, so the scheduler cannot tell a slow run from a broken one.
+ */
+const TIME_BUDGET_MS = 45_000;
+
 export async function GET(req: NextRequest) {
   if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const db = serviceClient();
   const now = Date.now();
 
@@ -36,12 +44,21 @@ export async function GET(req: NextRequest) {
     .select("id, studio_id, event_name, occurred_at, payload")
     .is("processed_at", null)
     .order("occurred_at", { ascending: true })
-    .limit(200);
+    // Payment events each fetch the transaction from Momence, so a backlog of
+    // them is slow. Take a large slice and stop on the clock rather than on a
+    // count — the mix of event types varies too much to pick a safe number.
+    .limit(400);
 
   let replayed = 0;
   let stillFailing = 0;
+  let ranOutOfTime = false;
 
   for (const row of unprocessed ?? []) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS) {
+      ranOutOfTime = true;
+      break;
+    }
+
     const evt: MomenceEvent = {
       event: row.event_name,
       timestamp: row.occurred_at,
@@ -110,7 +127,10 @@ export async function GET(req: NextRequest) {
   // and the other work in this route — replaying failed projections — keeps
   // running every 15 minutes regardless.
   const cancellations: Record<string, unknown>[] = [];
-  const dueForSessionSweep = new Date().getMinutes() < 15;
+  // Skip the sweep entirely when the replay has already used the budget;
+  // draining a backlog matters more than refreshing the schedule this hour.
+  const dueForSessionSweep =
+    new Date().getMinutes() < 15 && Date.now() - startedAt < TIME_BUDGET_MS;
 
   if (dueForSessionSweep) {
     const { data: studios } = await db.from("studios").select("id, slug").eq("is_active", true);
@@ -125,7 +145,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    events: { replayed, stillFailing },
+    events: { replayed, stillFailing, ranOutOfTime },
     reports: { collected, abandoned },
     cancellations: dueForSessionSweep ? cancellations : "skipped this run",
   });
