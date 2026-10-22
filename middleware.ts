@@ -14,6 +14,17 @@ import { NextResponse, type NextRequest } from "next/server";
  * recover.
  */
 export async function middleware(request: NextRequest) {
+  // Supabase sends a sign-in link back to the site URL when the link's own
+  // redirect isn't on its allow list, so the code can arrive at "/". Hand
+  // it to the callback that turns it into a session, rather than bouncing
+  // the person to /login with the code thrown away.
+  const params = request.nextUrl.searchParams;
+  if (request.nextUrl.pathname === "/" && (params.has("code") || params.has("token_hash"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
