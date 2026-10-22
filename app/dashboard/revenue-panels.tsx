@@ -34,7 +34,7 @@ export function MixBar({ data, currency }: { data: RevenueMix; currency: string 
         {parts.map((p) => (
           <div key={p.key}>
             <dt className="text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">{p.label}</dt>
-            <dd className="mt-0.5 font-mono text-lg tabular-nums">{fmt(p.value)}</dd>
+            <dd className="mt-0.5 font-serif text-lg tabular-nums">{fmt(p.value)}</dd>
             <dd className="text-[0.65rem] text-[var(--text-muted)]">
               {Math.round((p.value / total) * 100)}% · {p.hint}
             </dd>
@@ -111,7 +111,7 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   return (
     <div className="rounded-lg border border-[var(--border)] p-3">
       <div className="text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1 font-mono text-xl tabular-nums">{value}</div>
+      <div className="mt-1 font-serif text-xl tabular-nums">{value}</div>
       {note && <div className="mt-0.5 text-[0.65rem] text-[var(--text-muted)]">{note}</div>}
     </div>
   );

@@ -1,39 +1,40 @@
 @import "tailwindcss";
 
+/*
+ * One look, balance's: cream, taupe and sage, never dark. `dark:` utilities
+ * only apply under a .dark class, which nothing sets, so a Mac in dark mode
+ * still gets the studio's colours.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-raleway), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: var(--font-baskerville), Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 }
 
 /*
  * One palette, defined as tokens, so the charts and the page cannot drift
  * apart. Recharts is passed var(--accent) directly rather than a hex, which
- * is what keeps the bars and the chips the same colour in both themes.
+ * is what keeps the bars and the chips the same colour.
+ *
+ * Taken from balancestudios.ie: cream #f8f2ec, taupe #e0d6d1, sage #a3c1ad.
+ * --accent is the sage deepened enough to read as a chart line or a link on
+ * cream; --accent-soft is the brand sage itself, for buttons and selected
+ * chips, which carry dark text because white on sage is too faint to read.
  */
 :root {
-  --bg: #fbfbfa;
+  color-scheme: light;
+  --bg: #f8f2ec;
   --surface: #ffffff;
-  --border: #e7e5e1;
-  --text: #1c1b19;
-  --text-muted: #77736c;
-  --accent: #3f6f5a;
-  --muted-bar: #d6d3ce;
-  --chip: #f0efec;
+  --border: #e0d6d1;
+  --text: #1e1a1a;
+  --text-muted: #74675f;
+  --accent: #6f9a80;
+  --accent-soft: #a3c1ad;
+  --muted-bar: #e6dbd4;
+  --chip: #f2eae3;
   --warn: #b4593f;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131312;
-    --surface: #1b1b19;
-    --border: #2e2d2a;
-    --text: #ece9e4;
-    --text-muted: #8e8a83;
-    --accent: #6aa88b;
-    --muted-bar: #3a3936;
-    --chip: #252421;
-  --warn: #c9714f;
-  }
 }
 
 html {
@@ -43,11 +44,21 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
+  /* Raleway draws old-style figures by default; a reporting tool wants
+     numbers that line up. */
+  font-variant-numeric: lining-nums;
+}
+
+@layer base {
+  h1 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
 }
 
 /* Numbers in a reporting tool should never reflow as they tick up. */
 .tabular-nums {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

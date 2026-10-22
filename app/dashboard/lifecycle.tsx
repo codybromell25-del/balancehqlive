@@ -48,7 +48,7 @@ export function LifecycleBar({ data }: { data: Lifecycle }) {
             <dt className="text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">
               {s.label}
             </dt>
-            <dd className="mt-0.5 font-mono text-lg tabular-nums">{s.value.toLocaleString()}</dd>
+            <dd className="mt-0.5 font-serif text-lg tabular-nums">{s.value.toLocaleString()}</dd>
             <dd className="mt-0.5 text-[0.65rem] leading-tight text-[var(--text-muted)]">{s.hint}</dd>
           </div>
         ))}
@@ -129,7 +129,7 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   return (
     <div className="rounded-lg border border-[var(--border)] p-3">
       <div className="text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1 font-mono text-xl tabular-nums">{value}</div>
+      <div className="mt-1 font-serif text-xl tabular-nums">{value}</div>
       {note && <div className="mt-0.5 text-[0.65rem] text-[var(--text-muted)]">{note}</div>}
     </div>
   );

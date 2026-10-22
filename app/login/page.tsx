@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
+import { Wordmark } from "../wordmark";
 
 /**
  * Password sign-in, with an email link as a fallback.
@@ -72,7 +73,9 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="text-xl font-semibold tracking-tight">balanceHQ</h1>
+      <h1 className="font-normal">
+        <Wordmark size="lg" />
+      </h1>
 
       {state === "sent" ? (
         <p className="mt-3 text-sm text-[var(--text-muted)]">
@@ -111,7 +114,7 @@ export default function LoginPage() {
           <button
             onClick={mode === "password" ? signIn : sendLink}
             disabled={state === "working"}
-            className="mt-3 w-full cursor-pointer rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition disabled:opacity-50"
+            className="mt-4 w-full cursor-pointer rounded-full bg-[var(--accent-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:brightness-95 disabled:opacity-50"
           >
             {state === "working"
               ? mode === "password"

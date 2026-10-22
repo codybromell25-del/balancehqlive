@@ -133,7 +133,7 @@ function Stat({ label, value, note, warn }: { label: string; value: string; note
   return (
     <div>
       <dt className="text-[0.68rem] uppercase tracking-wider text-[var(--text-muted)]">{label}</dt>
-      <dd className={"mt-0.5 font-mono text-lg tabular-nums " + (warn ? "text-rose-600 dark:text-rose-400" : "")}>
+      <dd className={"mt-0.5 font-serif text-lg tabular-nums " + (warn ? "text-rose-600 dark:text-rose-400" : "")}>
         {value}
       </dd>
       {note && <dd className="text-[0.65rem] text-[var(--text-muted)]">{note}</dd>}

@@ -24,7 +24,10 @@ export async function getAccess() {
   } = await db.auth.getUser();
 
   if (!user) {
-    return { db, user: null, canReport: false, canManageDocs: false, docStudioId: null as string | null };
+    return {
+      db, user: null, canReport: false, canManageDocs: false,
+      docStudioId: null as string | null, reportScope: "",
+    };
   }
 
   // The studio_users policy only returns the caller's own rows.
@@ -32,11 +35,19 @@ export async function getAccess() {
   const rows = (data ?? []) as { studio_id: string; role: Role }[];
   const docRow = rows.find((r) => DOCUMENTS.includes(r.role));
 
+  // Everything row level security consults when it decides what a report
+  // returns: which studios, and whether the person is an owner (owners also
+  // get the named at-risk and teacher lists). Two people with the same scope
+  // see identical numbers, which is what lets the dashboard share a cache.
+  const studios = [...new Set(rows.filter((r) => REPORTING.includes(r.role)).map((r) => r.studio_id))].sort();
+  const owner = rows.some((r) => r.role === "owner" || r.role === "admin");
+
   return {
     db,
     user,
-    canReport: rows.some((r) => REPORTING.includes(r.role)),
+    canReport: studios.length > 0,
     canManageDocs: Boolean(docRow),
     docStudioId: docRow?.studio_id ?? null,
+    reportScope: `${studios.join(",")}|${owner ? "owner" : "viewer"}`,
   };
 }

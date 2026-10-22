@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { describeInsurance, type Insurance } from "@/lib/instructors";
+import { Wordmark } from "../wordmark";
 
 /** Small pieces shared by the instructor pages. */
 
@@ -21,13 +22,16 @@ export function InsuranceBadge({ insurance }: { insurance: Insurance }) {
 export function TopBar({ email, back }: { email: string; back?: { href: string; label: string } }) {
   return (
     <div className="mb-8 flex flex-wrap items-center justify-between gap-3 text-sm">
-      {back ? (
-        <Link href={back.href} className="text-[var(--text-muted)] hover:text-[var(--text)]">
-          ← {back.label}
+      <div className="flex items-baseline gap-5">
+        <Link href="/" aria-label="balanceHQ home">
+          <Wordmark />
         </Link>
-      ) : (
-        <span className="font-semibold tracking-tight">balanceHQ</span>
-      )}
+        {back && (
+          <Link href={back.href} className="text-[var(--text-muted)] hover:text-[var(--text)]">
+            ← {back.label}
+          </Link>
+        )}
+      </div>
       <div className="flex items-center gap-3 text-[var(--text-muted)]">
         <span className="hidden sm:inline">{email}</span>
         <form action="/auth/sign-out" method="post">
@@ -59,6 +63,6 @@ export const input =
   "outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]";
 
 export const button =
-  "cursor-pointer rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition disabled:opacity-50";
+  "cursor-pointer rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:brightness-95 disabled:opacity-50";
 
 export const label = "text-[0.7rem] font-medium uppercase tracking-wider text-[var(--text-muted)]";

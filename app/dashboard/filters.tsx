@@ -102,7 +102,7 @@ export function Filters({
             type="button"
             onClick={applyRange}
             disabled={!draft.from || !draft.to || (draft.from === from && draft.to === to)}
-            className="cursor-pointer rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white transition disabled:opacity-40"
+            className="cursor-pointer rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--text)] transition disabled:opacity-40"
           >
             Apply
           </button>
@@ -146,7 +146,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       className={
         "cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition " +
         (active
-          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+          ? "border-[var(--accent-soft)] bg-[var(--accent-soft)] text-[var(--text)] font-medium"
           : "border-[var(--border)] bg-[var(--chip)] text-[var(--text-muted)] hover:text-[var(--text)]")
       }
     >

@@ -110,6 +110,13 @@ Webhooks only deliver events from the moment they are registered. Nothing
 historical arrives, so register early — every day of delay is a day of history
 that has to be backfilled from reports instead.
 
+## Function region
+
+`vercel.json` pins functions to `dub1` (Dublin), next to the Supabase
+database in `eu-west-1` (Ireland). Every page makes several database round
+trips, and from Vercel's default `iad1` (Washington) each one crossed the
+Atlantic. If the database ever moves, move this with it.
+
 ## A note on the cron schedule
 
 `vercel.json` registers two crons:

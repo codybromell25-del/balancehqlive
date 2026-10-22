@@ -1,7 +1,8 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { TopBar } from "../instructors/ui";
 import { getAccess } from "@/lib/access";
+import { dashboardData } from "@/lib/dashboard-data";
 import { FreshnessStrip } from "./freshness-strip";
 import { Filters } from "./filters";
 import { PERIODS, DEFAULT_PERIOD } from "./periods";
@@ -80,7 +81,7 @@ export default async function DashboardPage({
   // Only drive the query off explicit dates once both are present and valid,
   // so a hand-edited URL degrades to the default window rather than throwing.
   const customRange = periodKey === "custom" && isDate(sp.from) && isDate(sp.to);
-  const { db, user, canReport } = await getAccess();
+  const { db, user, canReport, reportScope } = await getAccess();
 
   if (!user) {
     return <Empty title="Sign in to continue" body="Your studio's numbers are behind a login." />;
@@ -115,58 +116,33 @@ export default async function DashboardPage({
 
   const locationId = selected === "all" ? null : Number(selected);
 
-  // Aggregation happens in Postgres. Fetching daily rows and summing them
-  // here hit PostgREST's 1000-row cap, which silently truncated a 12-month
-  // window across seven locations and reported totals that were simply wrong.
-  // dashboard_revenue keys off the location name Momence records on the sale,
-  // not our numeric id — sales and sessions arrive from different endpoints
-  // with no shared location key.
-  const siteNameFilter =
-    selected === "all"
-      ? null
-      : ((await db.from("locations").select("name")
-            .eq("momence_location_id", Number(selected)).maybeSingle()).data?.name ?? null);
+  // The access token lets the cached loader query as this user without
+  // touching cookies, which a cached function may not do. getAccess has
+  // already verified the user with the auth server.
+  const {
+    data: { session },
+  } = await db.auth.getSession();
 
   const [
-    { data: current },
-    { data: previous },
-    { data: heat },
-    { data: performance },
-    { data: atRisk },
-    { data: membership },
-    { data: cohorts },
-    { data: lifecycle },
-    { data: cancellations },
-    { data: cancelledClasses },
-    { data: firstClass },
-    { data: revenue },
-    { data: revMix },
-    { data: intro },
+    {
+      current, previous, heat, performance, atRisk, membership, cohorts, lifecycle,
+      cancellations, cancelledClasses, firstClass, revenue, revMix, intro, studio, locations,
+    },
     { data: freshness },
-    { data: studio },
-    { data: locations },
     { data: verification },
-  ] =
-    await Promise.all([
-      db.rpc("dashboard_summary", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
-      db.rpc("dashboard_summary", { p_from: iso(priorFrom), p_to: iso(priorTo), p_location: locationId }),
-      db.rpc("dashboard_heatmap", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
-      db.rpc("dashboard_performance", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
-      db.rpc("dashboard_at_risk", {}),
-      db.rpc("dashboard_membership_trend", { p_months: 12 }),
-      db.rpc("dashboard_cohorts", { p_months: 9 }),
-      db.rpc("dashboard_lifecycle", {}),
-      db.rpc("dashboard_cancellations", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
-      db.rpc("dashboard_cancelled_classes", { p_from: iso(from), p_to: iso(to), p_location: locationId }),
-      db.rpc("dashboard_first_class", { p_from: iso(yearAgo), p_to: iso(to) }),
-      db.rpc("dashboard_revenue", { p_from: iso(from), p_to: iso(to), p_location: siteNameFilter }),
-      db.rpc("dashboard_revenue_mix", { p_from: iso(from), p_to: iso(to) }),
-      db.rpc("dashboard_intro_offers", { p_from: iso(yearAgo), p_to: iso(to), p_mature_days: 60 }),
-      db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
-      db.from("studios").select("name, currency").limit(1).maybeSingle(),
-      db.from("locations").select("momence_location_id, name").order("name"),
-      db.from("kpi_verification").select("*").limit(1).maybeSingle(),
-    ]);
+  ] = await Promise.all([
+    dashboardData(db, session?.access_token ?? null, reportScope, {
+      from: iso(from),
+      to: iso(to),
+      priorFrom: iso(priorFrom),
+      priorTo: iso(priorTo),
+      yearAgo: iso(yearAgo),
+      location: locationId,
+    }),
+    // Read live: these say how current the numbers are.
+    db.from("kpi_data_freshness").select("*").limit(1).maybeSingle(),
+    db.from("kpi_verification").select("*").limit(1).maybeSingle(),
+  ]);
 
   const now = (current ?? {}) as Summary;
   const before = (previous ?? {}) as Summary;
@@ -277,13 +253,11 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <Link href="/" className="mb-6 inline-block text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
-        ← balanceHQ
-      </Link>
+      <TopBar email={user.email ?? ""} />
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.6rem] font-semibold tracking-tight">
-            {studio?.name ?? "Studio"}
+            Studio reporting
             {siteName && (
               <span className="text-[var(--text-muted)] font-normal">
                 {" · "}{siteName.replace(/^balance\s*-\s*/i, "")}
@@ -329,7 +303,7 @@ export default async function DashboardPage({
                 <span className="text-[0.62rem] text-[var(--text-muted)] opacity-70">{m.note}</span>
               )}
             </div>
-            <div className="mt-2 font-mono text-[1.7rem] leading-none tabular-nums">{m.value}</div>
+            <div className="mt-2 font-serif text-[1.7rem] leading-none tabular-nums">{m.value}</div>
             <div className="mt-2 h-4 text-xs tabular-nums">
               {m.change !== null && m.change !== undefined && (
                 <span
