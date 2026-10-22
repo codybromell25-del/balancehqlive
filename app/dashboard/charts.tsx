@@ -45,7 +45,7 @@ export interface TrendPoint {
 export function AttendanceTrend({ data }: { data: TrendPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="att" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
@@ -54,7 +54,7 @@ export function AttendanceTrend({ data }: { data: TrendPoint[] }) {
         </defs>
         <CartesianGrid strokeDasharray="2 4" stroke="currentColor" opacity={0.12} vertical={false} />
         <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} minTickGap={24} />
-        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} />
         <Tooltip
           {...tooltipStyle()}
           formatter={(v: number, n: string) => [v, n === "attended" ? "Attended" : "Capacity"]}

@@ -110,6 +110,9 @@ function Section(props: {
   return (
     <Link
       href={props.href}
+      // Fetch the whole section while this page sits open, so the click
+      // lands on a page that's already loaded (and warms the report cache).
+      prefetch
       className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition hover:border-[var(--accent)]"
     >
       {inner}

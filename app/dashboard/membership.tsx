@@ -41,12 +41,12 @@ export interface MonthPoint {
 export function MembershipTrend({ data }: { data: MonthPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={230}>
-      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
+      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="2 4" stroke="currentColor" opacity={0.12} vertical={false} />
         <XAxis dataKey="month" tick={AXIS} tickLine={false} axisLine={false} minTickGap={16} />
-        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} />
         <Tooltip {...TIP} />
-        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v: string) => <span style={{ color: "var(--text-muted)" }}>{v}</span>} />
         <Bar dataKey="returning_members" name="Returning" stackId="a" fill="var(--accent)" radius={[0, 0, 0, 0]} />
         <Bar dataKey="new_members" name="New" stackId="a" fill="var(--muted-bar)" radius={[4, 4, 0, 0]} />
       </BarChart>
