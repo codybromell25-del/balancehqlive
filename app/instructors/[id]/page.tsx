@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import {
-  docTypeLabel,
+  DOC_TYPES,
   formatBytes,
   formatDate,
   insuranceFor,
+  isDocType,
   isUuid,
   todayInDublin,
   WARN_DAYS,
@@ -27,8 +28,19 @@ type Doc = {
   uploaded_at: string;
 };
 
-export default async function InstructorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+/**
+ * One instructor's profile: every document they have, grouped by kind,
+ * and the form to add more. An empty kind links straight to the form with
+ * that kind already chosen.
+ */
+export default async function InstructorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
   const { db, user, canManageDocs, docStudioId } = await getAccess();
   if (!user) redirect("/login");
   if (!canManageDocs || !docStudioId) return <NoAccess />;
@@ -47,86 +59,99 @@ export default async function InstructorPage({ params }: { params: Promise<{ id:
   const docs = (docRows ?? []) as Doc[];
   const insurance = insuranceFor(docs);
   const today = todayInDublin();
+  const preselect = sp.type && isDocType(sp.type) ? sp.type : "insurance";
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-12">
-      <TopBar email={user.email ?? ""} back={{ href: "/instructors", label: "Instructor documents" }} />
+      <TopBar email={user.email ?? ""} back={{ href: "/instructors", label: "All instructors" }} />
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[1.6rem] font-semibold tracking-tight">
+          <h1 className="text-[1.8rem] font-semibold tracking-tight">
             {person.full_name}
             {!person.active && (
-              <span className="ml-2 align-middle text-sm font-normal text-[var(--text-muted)]">archived</span>
+              <span className="ml-2 align-middle font-sans text-sm font-normal text-[var(--text-muted)]">archived</span>
             )}
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
             {[person.email, person.phone].filter(Boolean).join(" · ") || "No contact details yet"}
+            {" · "}
+            {docs.length} document{docs.length === 1 ? "" : "s"}
           </p>
         </div>
         <InsuranceBadge insurance={insurance} />
       </header>
 
-      <section className={card}>
-        <h2 className="text-sm font-semibold">Upload a document</h2>
+      <section id="upload" className={`${card} scroll-mt-6`}>
+        <h2 className="text-sm font-semibold">Add a document</h2>
         <p className="mb-4 mt-0.5 text-xs text-[var(--text-muted)]">
-          PDF, photo or Word file, up to 15 MB. For insurance, enter the date the policy is valid until —
-          a warning appears {WARN_DAYS} days before it.
+          PDF, photo or Word file, up to 15 MB. For insurance, enter the date the policy is valid until — a
+          warning appears {WARN_DAYS} days before it.
         </p>
-        <UploadForm studioId={docStudioId} instructorId={person.id as string} />
+        <UploadForm key={preselect} studioId={docStudioId} instructorId={person.id as string} defaultType={preselect} />
       </section>
 
       <section className={`${card} mt-4`}>
-        <h2 className="mb-4 text-sm font-semibold">Documents ({docs.length})</h2>
-        {docs.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">Nothing uploaded yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-left text-[0.7rem] uppercase tracking-wider text-[var(--text-muted)]">
-                  <th className="py-2 pr-4 font-medium">Type</th>
-                  <th className="py-2 pr-4 font-medium">Document</th>
-                  <th className="py-2 pr-4 font-medium">Valid until</th>
-                  <th className="py-2 pr-4 font-medium">Uploaded</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {docs.map((d) => {
-                  const expired = d.valid_until !== null && d.valid_until < today;
-                  return (
-                    <tr key={d.id} className="border-b border-[var(--border)] last:border-0">
-                      <td className="py-2.5 pr-4 whitespace-nowrap">{docTypeLabel(d.doc_type)}</td>
-                      <td className="py-2.5 pr-4">
-                        <Link
-                          href={`/instructors/documents/${d.id}`}
-                          target="_blank"
-                          rel="noopener"
-                          className="font-medium hover:underline hover:underline-offset-2"
+        <h2 className="text-sm font-semibold">All documents ({docs.length})</h2>
+        <div className="mt-2 divide-y divide-[var(--border)]">
+          {DOC_TYPES.map((t) => {
+            const group = docs.filter((d) => d.doc_type === t.key);
+            return (
+              <div key={t.key} className="py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    {t.label}
+                    {group.length > 0 && ` (${group.length})`}
+                  </h3>
+                  {group.length === 0 && (
+                    <Link
+                      href={`/instructors/${person.id}?type=${t.key}#upload`}
+                      className="text-xs text-[var(--accent)] underline underline-offset-2"
+                    >
+                      None yet — add one
+                    </Link>
+                  )}
+                </div>
+                {group.length > 0 && (
+                  <ul className="mt-2 space-y-2">
+                    {group.map((d) => {
+                      const expired = d.valid_until !== null && d.valid_until < today;
+                      return (
+                        <li
+                          key={d.id}
+                          className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-[var(--chip)] px-3 py-2.5"
                         >
-                          {d.title || d.file_name}
-                        </Link>
-                        <div className="text-xs text-[var(--text-muted)]">
-                          {[d.title ? d.file_name : null, formatBytes(d.file_size)].filter(Boolean).join(" · ")}
-                        </div>
-                      </td>
-                      <td className={`py-2.5 pr-4 whitespace-nowrap tabular-nums ${expired ? "text-rose-600 dark:text-rose-400" : ""}`}>
-                        {d.valid_until ? formatDate(d.valid_until) : "—"}
-                      </td>
-                      <td className="py-2.5 pr-4 whitespace-nowrap tabular-nums text-[var(--text-muted)]">
-                        {formatDate(d.uploaded_at)}
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <DeleteDocumentButton id={d.id} name={d.title || d.file_name} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                          <div className="min-w-[12rem] flex-1">
+                            <div className="text-sm font-medium">{d.title || d.file_name}</div>
+                            <div className="text-xs text-[var(--text-muted)]">
+                              {[d.title ? d.file_name : null, formatBytes(d.file_size), `added ${formatDate(d.uploaded_at)}`]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          </div>
+                          {d.valid_until && (
+                            <span className={`text-xs tabular-nums ${expired ? "font-semibold text-rose-600" : "text-[var(--text-muted)]"}`}>
+                              {expired ? "Expired" : "Valid until"} {formatDate(d.valid_until)}
+                            </span>
+                          )}
+                          <Link
+                            href={`/instructors/documents/${d.id}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold transition hover:border-[var(--accent-soft)] hover:bg-[var(--accent-soft)]"
+                          >
+                            Open
+                          </Link>
+                          <DeleteDocumentButton id={d.id} name={d.title || d.file_name} />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <details className={`${card} mt-4`}>

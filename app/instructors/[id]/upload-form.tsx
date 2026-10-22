@@ -12,10 +12,18 @@ import { button, input, label } from "../ui";
  * document. Storage policies check the signed-in user's role against the
  * studio folder, so this cannot write anywhere a server action couldn't.
  */
-export function UploadForm({ studioId, instructorId }: { studioId: string; instructorId: string }) {
+export function UploadForm({
+  studioId,
+  instructorId,
+  defaultType = "insurance",
+}: {
+  studioId: string;
+  instructorId: string;
+  defaultType?: string;
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [docType, setDocType] = useState("insurance");
+  const [docType, setDocType] = useState(defaultType);
   const [state, setState] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
 
@@ -60,7 +68,7 @@ export function UploadForm({ studioId, instructorId }: { studioId: string; instr
     }
 
     formRef.current?.reset();
-    setDocType("insurance");
+    setDocType(defaultType);
     setState("done");
     setMessage("Uploaded.");
     router.refresh();
