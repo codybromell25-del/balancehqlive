@@ -45,7 +45,7 @@ export default function LoginPage() {
 
     // Full reload rather than a client transition, so the server component
     // reads the session cookie that was just written.
-    router.push("/dashboard");
+    router.push("/");
     router.refresh();
   }
 
@@ -72,7 +72,7 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="text-xl font-semibold tracking-tight">Studio reporting</h1>
+      <h1 className="text-xl font-semibold tracking-tight">balanceHQ</h1>
 
       {state === "sent" ? (
         <p className="mt-3 text-sm text-[var(--text-muted)]">
@@ -82,7 +82,7 @@ export default function LoginPage() {
         <>
           <p className="mt-1.5 text-sm text-[var(--text-muted)]">
             {mode === "password"
-              ? "Sign in to see your studio's numbers."
+              ? "Sign in to continue."
               : "We'll email you a link — no password needed."}
           </p>
 

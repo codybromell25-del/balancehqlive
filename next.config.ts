@@ -60,6 +60,13 @@ const config: NextConfig = {
           { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
         ],
       },
+      {
+        // Instructor pages list names, contact details and insurance.
+        source: "/instructors/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
+        ],
+      },
     ];
   },
 };

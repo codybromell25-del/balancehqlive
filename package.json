@@ -8,7 +8,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "studio:add": "tsx --env-file=.env.local scripts/add-studio.ts",
-    "studio:check": "tsx --env-file=.env.local scripts/check-connection.ts"
+    "studio:check": "tsx --env-file=.env.local scripts/check-connection.ts",
+    "access:grant": "tsx --env-file=.env.local scripts/grant-access.ts",
+    "instructors:add": "tsx --env-file=.env.local scripts/add-instructors.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

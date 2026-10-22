@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (!error) return NextResponse.redirect(new URL("/", request.url));
     return fail(request, "exchange_failed");
   }
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       token_hash: tokenHash,
       type: (type as "magiclink" | "email" | "invite" | "recovery") ?? "magiclink",
     });
-    if (!error) return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (!error) return NextResponse.redirect(new URL("/", request.url));
     return fail(request, "invalid_or_expired");
   }
 

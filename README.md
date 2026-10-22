@@ -93,6 +93,35 @@ protecting as the schema grows.
    range — mind the daily budget, and prefer doing it on a day when the
    scheduled runs are light.
 
+## Access and instructor documents
+
+The front page (`/`) leads to two sections, and what each person can open
+depends on their role in `studio_users`:
+
+| Role | Reporting | Instructor documents |
+| --- | --- | --- |
+| `owner`, `admin` | yes | yes |
+| `viewer` | yes | no |
+| `instructor_admin` | no | yes |
+
+Row level security enforces this (migration 0018), not just the page. An
+`instructor_admin` gets nothing back from any report table, view or dashboard
+function, and their Reporting card shows as unavailable.
+
+**Instructor documents** (`/instructors`) holds each instructor's insurance,
+qualifications and contracts in the private `instructor-documents` storage
+bucket. Insurance must have a "valid until" date. It shows as a warning
+there, and on the front page, from 30 days before it runs out.
+
+```bash
+# Give someone access, or change their role. They sign in with an email link.
+npm run access:grant -- --email jane@balance.ie --role instructor_admin
+npm run access:grant -- --email jane@balance.ie --remove
+
+# Load instructors from a text file, one name per line (keep it out of git).
+npm run instructors:add -- --file ~/instructors.txt
+```
+
 ## Two things to confirm with Momence before going live
 
 **Is the 100/day report limit per API client or per host?** Each studio

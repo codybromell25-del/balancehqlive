@@ -1,5 +1,7 @@
 import { Suspense } from "react";
-import { userClient } from "@/lib/db";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAccess } from "@/lib/access";
 import { FreshnessStrip } from "./freshness-strip";
 import { Filters } from "./filters";
 import { PERIODS, DEFAULT_PERIOD } from "./periods";
@@ -78,15 +80,15 @@ export default async function DashboardPage({
   // Only drive the query off explicit dates once both are present and valid,
   // so a hand-edited URL degrades to the default window rather than throwing.
   const customRange = periodKey === "custom" && isDate(sp.from) && isDate(sp.to);
-  const db = await userClient();
-
-  const {
-    data: { user },
-  } = await db.auth.getUser();
+  const { db, user, canReport } = await getAccess();
 
   if (!user) {
     return <Empty title="Sign in to continue" body="Your studio's numbers are behind a login." />;
   }
+
+  // Instructor admins have no reporting access. The database would return
+  // nothing anyway; sending them home saves them a page of empty panels.
+  if (!canReport) redirect("/");
 
   // Until a range is applied, custom shows the same window as the default
   // preset, so the page has something sensible on it while the inputs sit open.
@@ -275,6 +277,9 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+      <Link href="/" className="mb-6 inline-block text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
+        ← balanceHQ
+      </Link>
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.6rem] font-semibold tracking-tight">
