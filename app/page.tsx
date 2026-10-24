@@ -68,6 +68,14 @@ export default async function Home() {
             alert={warnings.length ? `Insurance: ${warnings.join(", ")}` : undefined}
             note={missing ? `${missing} instructor${missing === 1 ? "" : "s"} with no insurance on file` : undefined}
           />
+          <Section
+            href="https://educationbalance.vercel.app/login"
+            external
+            eyebrow="Education"
+            title="balance Education admin"
+            body="Sign in to the training course admin. Opens in a new tab with its own login."
+            locked=""
+          />
           {ownerStudioId && (
             <Section
               href="/team"
@@ -91,13 +99,18 @@ function Section(props: {
   locked: string;
   alert?: string;
   note?: string;
+  /** Another site: opens in a new tab, and isn't prefetched. */
+  external?: boolean;
 }) {
   const inner = (
     <>
       <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
         {props.eyebrow}
       </span>
-      <h2 className="mt-2 font-serif text-xl tracking-tight">{props.title}</h2>
+      <h2 className="mt-2 font-serif text-xl tracking-tight">
+        {props.title}
+        {props.external && <span className="ml-1.5 font-sans text-base text-[var(--text-muted)]">↗</span>}
+      </h2>
       <p className="mt-1 text-sm text-[var(--text-muted)]">{props.href ? props.body : props.locked}</p>
       {props.href && props.alert && (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -113,6 +126,19 @@ function Section(props: {
       <div aria-disabled className="select-none rounded-xl border border-dashed border-[var(--border)] p-5 opacity-50">
         {inner}
       </div>
+    );
+  }
+
+  if (props.external) {
+    return (
+      <a
+        href={props.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition hover:border-[var(--accent)]"
+      >
+        {inner}
+      </a>
     );
   }
 
