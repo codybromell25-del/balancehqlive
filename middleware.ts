@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const signedInOnly =
-    path === "/" || path.startsWith("/dashboard") || path.startsWith("/instructors");
+    path === "/" || path.startsWith("/dashboard") || path.startsWith("/instructors") || path.startsWith("/team");
 
   if (!user && signedInOnly) {
     const url = request.nextUrl.clone();

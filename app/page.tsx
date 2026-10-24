@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * by the database regardless.
  */
 export default async function Home() {
-  const { db, user, canReport, canManageDocs } = await getAccess();
+  const { db, user, canReport, canManageDocs, ownerStudioId } = await getAccess();
   if (!user) redirect("/login");
 
   let expired = 0;
@@ -68,6 +68,15 @@ export default async function Home() {
             alert={warnings.length ? `Insurance: ${warnings.join(", ")}` : undefined}
             note={missing ? `${missing} instructor${missing === 1 ? "" : "s"} with no insurance on file` : undefined}
           />
+          {ownerStudioId && (
+            <Section
+              href="/team"
+              eyebrow="Owner"
+              title="Staff logins"
+              body="Add logins, choose what each person can open, and set or reset passwords."
+              locked=""
+            />
+          )}
         </div>
       )}
     </main>

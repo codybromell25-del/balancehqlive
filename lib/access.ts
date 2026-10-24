@@ -26,7 +26,7 @@ export async function getAccess() {
   if (!user) {
     return {
       db, user: null, canReport: false, canManageDocs: false,
-      docStudioId: null as string | null, reportScope: "",
+      docStudioId: null as string | null, reportScope: "", ownerStudioId: null as string | null,
     };
   }
 
@@ -49,5 +49,7 @@ export async function getAccess() {
     canManageDocs: Boolean(docRow),
     docStudioId: docRow?.studio_id ?? null,
     reportScope: `${studios.join(",")}|${owner ? "owner" : "viewer"}`,
+    // Only an owner manages who can sign in (the Staff logins page).
+    ownerStudioId: rows.find((r) => r.role === "owner")?.studio_id ?? null,
   };
 }

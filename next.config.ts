@@ -67,6 +67,13 @@ const config: NextConfig = {
           { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
         ],
       },
+      {
+        // Staff logins lists every login's email address.
+        source: "/team",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
+        ],
+      },
     ];
   },
 };
