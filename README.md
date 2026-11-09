@@ -93,20 +93,28 @@ protecting as the schema grows.
    range — mind the daily budget, and prefer doing it on a day when the
    scheduled runs are light.
 
-## Access and instructor documents
+## Access, instructor documents and the marketing calendar
 
-The front page (`/`) leads to two sections, and what each person can open
+The front page (`/`) leads to three sections, and what each person can open
 depends on their role in `studio_users`:
 
-| Role | Reporting | Instructor documents |
-| --- | --- | --- |
-| `owner`, `admin` | yes | yes |
-| `viewer` | yes | no |
-| `instructor_admin` | no | yes |
+| Role | Reporting | Instructor documents | Marketing calendar |
+| --- | --- | --- | --- |
+| `owner`, `admin` | yes | yes | yes, and can delete anyone's notes and flags |
+| `viewer` | yes | no | yes |
+| `instructor_admin` | no | yes | yes |
 
-Row level security enforces this (migration 0018), not just the page. An
-`instructor_admin` gets nothing back from any report table, view or dashboard
-function, and their Reporting card shows as unavailable.
+Row level security enforces this (migrations 0018 and 0021), not just the
+page. An `instructor_admin` gets nothing back from any report table, view or
+dashboard function, and their Reporting card shows as unavailable.
+
+**Marketing calendar** (`/marketing`) is a month view with today highlighted.
+Key dates are flagged on their day: balance dates (studio birthdays, launches),
+marketing moments, and bank holidays and school breaks. Migration 0021 flags
+them from November 2026 to New Year 2028, and anyone can flag more. Any day
+takes notes, one level of replies under each note, and likes. Who wrote a note
+or gave a like is stamped from the session in the database, never taken from
+the request.
 
 **Instructor documents** (`/instructors`) holds each instructor's insurance,
 qualifications and contracts in the private `instructor-documents` storage

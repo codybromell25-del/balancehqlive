@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { insuranceFor } from "@/lib/instructors";
+import { insuranceFor, todayInDublin } from "@/lib/instructors";
+import { fromToday, shortDay } from "@/lib/marketing";
 import { TopBar } from "./instructors/ui";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The front door: reporting on one side, instructor documents on the other.
+ * The front door: reporting, instructor documents, the marketing calendar,
+ * and links out to the two course sites.
  *
  * Each card follows the person's role. Someone without reporting access
  * sees that card blanked out rather than missing, so it is clear the
@@ -15,17 +17,29 @@ export const dynamic = "force-dynamic";
  * by the database regardless.
  */
 export default async function Home() {
-  const { db, user, canReport, canManageDocs, ownerStudioId } = await getAccess();
+  const { db, user, canReport, canManageDocs, ownerStudioId, canPlan } = await getAccess();
   if (!user) redirect("/login");
+
+  const today = todayInDublin();
+  const [insurance, nextFlag] = await Promise.all([
+    canManageDocs
+      ? Promise.all([
+          db.from("instructors").select("id").eq("active", true),
+          db.from("instructor_documents").select("instructor_id, doc_type, valid_until").eq("doc_type", "insurance"),
+        ])
+      : null,
+    // The next date flagged on the marketing calendar.
+    canPlan
+      ? db.from("marketing_flags").select("day, title").gte("day", today).order("day").limit(1).maybeSingle()
+      : null,
+  ]);
+  const next = nextFlag?.data;
 
   let expired = 0;
   let expiring = 0;
   let missing = 0;
-  if (canManageDocs) {
-    const [{ data: people }, { data: docs }] = await Promise.all([
-      db.from("instructors").select("id").eq("active", true),
-      db.from("instructor_documents").select("instructor_id, doc_type, valid_until").eq("doc_type", "insurance"),
-    ]);
+  if (insurance) {
+    const [{ data: people }, { data: docs }] = insurance;
     for (const p of people ?? []) {
       const state = insuranceFor((docs ?? []).filter((d) => d.instructor_id === p.id)).state;
       if (state === "expired") expired++;
@@ -69,6 +83,23 @@ export default async function Home() {
             note={missing ? `${missing} instructor${missing === 1 ? "" : "s"} with no insurance on file` : undefined}
           />
           <Section
+            href={canPlan ? "/marketing" : null}
+            eyebrow="Marketing"
+            title="Marketing calendar"
+            body="Key dates for the year ahead, and the team's notes and ideas for each day."
+            locked="Not available on your account."
+            note={next ? `Next: ${next.title} · ${shortDay(next.day)}, ${fromToday(today, next.day)}` : undefined}
+          />
+          {ownerStudioId && (
+            <Section
+              href="/team"
+              eyebrow="Owner"
+              title="Staff logins"
+              body="Add logins, choose what each person can open, and set or reset passwords."
+              locked=""
+            />
+          )}
+          <Section
             href="https://educationbalance.vercel.app/login"
             external
             eyebrow="Education"
@@ -84,15 +115,6 @@ export default async function Home() {
             body="Sign in to balance Portal, the course for studio staff. Opens in a new tab with its own login."
             locked=""
           />
-          {ownerStudioId && (
-            <Section
-              href="/team"
-              eyebrow="Owner"
-              title="Staff logins"
-              body="Add logins, choose what each person can open, and set or reset passwords."
-              locked=""
-            />
-          )}
         </div>
       )}
     </main>

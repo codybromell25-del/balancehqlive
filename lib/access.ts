@@ -11,6 +11,9 @@ import { userClient } from "@/lib/db";
  *   owner, admin       reports and instructor documents
  *   viewer             reports only — the shared desk login
  *   instructor_admin   instructor documents only
+ *
+ * Every role opens the marketing calendar (migration 0021). Owners and
+ * admins can also delete anyone's notes and flags there.
  */
 export type Role = "owner" | "admin" | "viewer" | "instructor_admin";
 
@@ -27,6 +30,7 @@ export async function getAccess() {
     return {
       db, user: null, canReport: false, canManageDocs: false,
       docStudioId: null as string | null, reportScope: "", ownerStudioId: null as string | null,
+      canPlan: false, planStudioId: null as string | null, managesPlans: false,
     };
   }
 
@@ -51,5 +55,8 @@ export async function getAccess() {
     reportScope: `${studios.join(",")}|${owner ? "owner" : "viewer"}`,
     // Only an owner manages who can sign in (the Staff logins page).
     ownerStudioId: rows.find((r) => r.role === "owner")?.studio_id ?? null,
+    canPlan: rows.length > 0,
+    planStudioId: rows[0]?.studio_id ?? null,
+    managesPlans: owner,
   };
 }

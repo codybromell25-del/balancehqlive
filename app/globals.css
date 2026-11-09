@@ -35,6 +35,17 @@
   --muted-bar: #e6dbd4;
   --chip: #f2eae3;
   --warn: #b4593f;
+
+  /* Marketing calendar: balance's own dates in sage, marketing moments in
+     sand, holidays in taupe, and today in a wash of sage. */
+  --sand: #f3e7d7;
+  --sand-text: #7a5328;
+  --sand-dot: #c99a63;
+  --taupe-dot: #b8a99f;
+  --blush: #f2dfda;
+  --today: #eef5f0;
+  --cell-hover: #fcf9f6;
+  --like: #c4554d;
 }
 
 html {
