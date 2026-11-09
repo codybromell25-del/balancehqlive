@@ -76,6 +76,14 @@ export default async function Home() {
             body="Sign in to the training course admin. Opens in a new tab with its own login."
             locked=""
           />
+          <Section
+            href="https://lmsinternal.vercel.app"
+            external
+            eyebrow="Training"
+            title="Internal staff course"
+            body="Sign in to balance Portal, the course for studio staff. Opens in a new tab with its own login."
+            locked=""
+          />
           {ownerStudioId && (
             <Section
               href="/team"
