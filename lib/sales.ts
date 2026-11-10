@@ -82,7 +82,8 @@ export const LEAD_DETAIL_COLUMNS = `${LEAD_LIST_COLUMNS}, address, eircode, webs
  */
 export function formatPhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  let d = raw.replace(/[^\d+]/g, "");
+  // "+00 353 …" turns up too: an international prefix written twice.
+  let d = raw.replace(/[^\d+]/g, "").replace(/^\+00/, "00");
   if (d.startsWith("+353")) d = "0" + d.slice(4);
   else if (d.startsWith("00353")) d = "0" + d.slice(5);
   else if (d.startsWith("353") && d.length >= 11) d = "0" + d.slice(3);
