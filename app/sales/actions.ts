@@ -34,6 +34,16 @@ const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 type Result<T> = { ok: false; error: string } | ({ ok: true } & T);
 
+/** "Wed 11 Nov 2026" */
+const readableDay = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString("en-IE", {
+    timeZone: "UTC",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
 export async function getLead(id: string): Promise<Result<{ lead: LeadDetail; activities: Activity[] }>> {
   const { db, canSell } = await getAccess();
   if (!canSell) return { ok: false, error: NO_ACCESS };
@@ -120,7 +130,7 @@ export async function setStatus(input: {
   const parts: string[] = [];
   if (before.status !== input.status) parts.push(`Status: ${statusLabel(input.status)}`);
   if ((before.follow_up_on ?? null) !== input.followUpOn) {
-    parts.push(input.followUpOn ? `Follow up on ${input.followUpOn}` : "Follow-up date cleared");
+    parts.push(input.followUpOn ? `Follow up on ${readableDay(input.followUpOn)}` : "Follow-up date cleared");
   }
   let activity: Activity | null = null;
   if (parts.length) {

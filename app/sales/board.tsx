@@ -111,16 +111,15 @@ export function SalesBoard(props: { leads: LeadRow[]; today: string; me: string 
   const [sort, setSort] = useState<Sort>("suggested");
   const [limit, setLimit] = useState(PAGE);
   const [openId, setOpenId] = useState<string | null>(null);
+  // The list's order when a lead was opened. Logging a call re-sorts the
+  // list, and Next must still go to the lead that was below this one.
+  const [queue, setQueue] = useState<string[] | null>(null);
   const [adding, setAdding] = useState(false);
-
-  // Pick up ?lead= so a link, or a refresh, reopens the lead.
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("lead");
-    if (id && props.leads.some((l) => l.id === id)) setOpenId(id);
-  }, [props.leads]);
 
   function open(id: string | null) {
     setOpenId(id);
+    if (!id) setQueue(null);
+    else if (!queue) setQueue(shown.map((l) => l.id));
     window.history.replaceState(null, "", id ? `/sales?lead=${id}` : "/sales");
   }
 
@@ -173,8 +172,17 @@ export function SalesBoard(props: { leads: LeadRow[]; today: string; me: string 
     return c;
   }, [leads, area]);
 
-  const index = openId ? shown.findIndex((l) => l.id === openId) : -1;
+  const order = queue ?? shown.map((l) => l.id);
+  const index = openId ? order.indexOf(openId) : -1;
   const openRow = openId ? (leads.find((l) => l.id === openId) ?? null) : null;
+
+  // Pick up ?lead= so a link, or a refresh, reopens the lead.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("lead");
+    if (id && props.leads.some((l) => l.id === id)) open(id);
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function replace(row: LeadRow) {
     setLeads((all) => all.map((l) => (l.id === row.id ? row : l)));
@@ -381,9 +389,9 @@ export function SalesBoard(props: { leads: LeadRow[]; today: string; me: string 
           row={openRow}
           me={me}
           today={today}
-          position={index >= 0 ? `${index + 1} of ${shown.length}` : null}
-          onPrev={index > 0 ? () => open(shown[index - 1].id) : null}
-          onNext={index >= 0 && index < shown.length - 1 ? () => open(shown[index + 1].id) : null}
+          position={index >= 0 ? `${index + 1} of ${order.length}` : null}
+          onPrev={index > 0 ? () => open(order[index - 1]) : null}
+          onNext={index >= 0 && index < order.length - 1 ? () => open(order[index + 1]) : null}
           onClose={() => open(null)}
           onChange={replace}
         />
