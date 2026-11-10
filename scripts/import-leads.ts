@@ -84,6 +84,34 @@ async function main() {
 
   console.log(`Imported ${rows.length} lead${rows.length === 1 ? "" : "s"}; skipped ${skipped.length}.`);
   if (skipped.length) console.log(`Skipped (missing name, ref, type, studio, or any contact): ${skipped.slice(0, 20).join(", ")}`);
+
+  // --prune: the file is the whole list, so imported leads missing from it
+  // were renamed or dropped by the research. Only leads nobody has worked
+  // yet go: still "to contact", never contacted, nothing logged.
+  if (process.argv.includes("--prune")) {
+    const keep = new Set(rows.map((r) => r.ref));
+    const { data: existing, error: listError } = await db
+      .from("sales_leads")
+      .select("id, ref, status, last_contact_at, follow_up_on, source")
+      .eq("studio_id", studio.id)
+      .not("ref", "is", null)
+      .range(0, 9999);
+    if (listError) throw listError;
+    const stale = (existing ?? []).filter(
+      (l) => !keep.has(l.ref) && l.status === "new" && !l.last_contact_at && !l.follow_up_on && l.source !== "Added by hand",
+    );
+    const { data: worked } = await db
+      .from("sales_activities")
+      .select("lead_id")
+      .in("lead_id", stale.length ? stale.map((l) => l.id) : ["00000000-0000-0000-0000-000000000000"]);
+    const touched = new Set((worked ?? []).map((a) => a.lead_id));
+    const remove = stale.filter((l) => !touched.has(l.id)).map((l) => l.id);
+    for (let i = 0; i < remove.length; i += 200) {
+      const { error: deleteError } = await db.from("sales_leads").delete().in("id", remove.slice(i, i + 200));
+      if (deleteError) throw deleteError;
+    }
+    console.log(`Pruned ${remove.length} untouched lead${remove.length === 1 ? "" : "s"} no longer in the file.`);
+  }
 }
 
 main().catch((e) => {
