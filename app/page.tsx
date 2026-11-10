@@ -17,11 +17,11 @@ export const dynamic = "force-dynamic";
  * by the database regardless.
  */
 export default async function Home() {
-  const { db, user, canReport, canManageDocs, ownerStudioId, canPlan } = await getAccess();
+  const { db, user, canReport, canManageDocs, ownerStudioId, canPlan, canSell } = await getAccess();
   if (!user) redirect("/login");
 
   const today = todayInDublin();
-  const [insurance, nextFlag] = await Promise.all([
+  const [insurance, nextFlag, sales] = await Promise.all([
     canManageDocs
       ? Promise.all([
           db.from("instructors").select("id").eq("active", true),
@@ -32,8 +32,21 @@ export default async function Home() {
     canPlan
       ? db.from("marketing_flags").select("day, title").gte("day", today).order("day").limit(1).maybeSingle()
       : null,
+    // Leads waiting for a first call, and follow-ups that have come due.
+    canSell
+      ? Promise.all([
+          db.from("sales_leads").select("id", { count: "exact", head: true }).eq("status", "new"),
+          db
+            .from("sales_leads")
+            .select("id", { count: "exact", head: true })
+            .lte("follow_up_on", today)
+            .in("status", ["new", "contacted", "follow_up", "interested"]),
+        ])
+      : null,
   ]);
   const next = nextFlag?.data;
+  const toContact = sales?.[0].count ?? 0;
+  const due = sales?.[1].count ?? 0;
 
   let expired = 0;
   let expiring = 0;
@@ -60,7 +73,7 @@ export default async function Home() {
       <h1 className="text-[1.6rem] font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-[var(--text-muted)]">Choose where you&apos;d like to go.</p>
 
-      {!canReport && !canManageDocs ? (
+      {!canPlan ? (
         <p className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--text-muted)]">
           Your account hasn&apos;t been given access to anything yet. Ask the studio owner to add you.
         </p>
@@ -89,6 +102,15 @@ export default async function Home() {
             body="Key dates for the year ahead, and the team's notes and ideas for each day."
             locked="Not available on your account."
             note={next ? `Next: ${next.title} · ${shortDay(next.day)}, ${fromToday(today, next.day)}` : undefined}
+          />
+          <Section
+            href={canSell ? "/sales" : null}
+            eyebrow="Sales"
+            title="Sales dashboard"
+            body="Hotels, companies, schools and colleges near each studio, ready to call and email."
+            locked="Not available on your account."
+            alert={due ? `${due} follow-up${due === 1 ? "" : "s"} due` : undefined}
+            note={canSell ? `${toContact.toLocaleString("en-IE")} leads still to contact` : undefined}
           />
           {ownerStudioId && (
             <Section

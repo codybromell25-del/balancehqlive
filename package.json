@@ -10,7 +10,8 @@
     "studio:add": "tsx --env-file=.env.local scripts/add-studio.ts",
     "studio:check": "tsx --env-file=.env.local scripts/check-connection.ts",
     "access:grant": "tsx --env-file=.env.local scripts/grant-access.ts",
-    "instructors:add": "tsx --env-file=.env.local scripts/add-instructors.ts"
+    "instructors:add": "tsx --env-file=.env.local scripts/add-instructors.ts",
+    "leads:import": "tsx --env-file=.env.local scripts/import-leads.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

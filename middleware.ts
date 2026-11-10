@@ -54,6 +54,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/dashboard") ||
     path.startsWith("/instructors") ||
     path.startsWith("/marketing") ||
+    path.startsWith("/sales") ||
     path.startsWith("/team");
 
   if (!user && signedInOnly) {

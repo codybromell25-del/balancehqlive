@@ -4,11 +4,12 @@
  *   npm run access:grant -- --email jane@balance.ie --role instructor_admin
  *   npm run access:grant -- --email jane@balance.ie --remove
  *
- * Roles (migration 0018):
- *   owner              reports and instructor documents
- *   admin              reports and instructor documents
+ * Roles (migrations 0018 and 0022):
+ *   owner              reports, instructor documents and the sales dashboard
+ *   admin              reports, instructor documents and the sales dashboard
  *   viewer             reports only
  *   instructor_admin   instructor documents only
+ *   sales              the sales dashboard only
  *
  * New people get an account with no password and nothing is emailed. They
  * sign in with "Email me a link instead" on the login page.
@@ -16,7 +17,7 @@
 
 import { serviceClient } from "../lib/db";
 
-const ROLES = ["owner", "admin", "viewer", "instructor_admin"] as const;
+const ROLES = ["owner", "admin", "viewer", "instructor_admin", "sales"] as const;
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(`--${flag}`);

@@ -8,17 +8,19 @@ import { userClient } from "@/lib/db";
  * permission, because the database refuses the data either way, but it
  * spares an instructor admin from landing on a dashboard of empty panels.
  *
- *   owner, admin       reports and instructor documents
+ *   owner, admin       reports, instructor documents and the sales dashboard
  *   viewer             reports only — the shared desk login
  *   instructor_admin   instructor documents only
+ *   sales              the sales dashboard only (migration 0022)
  *
  * Every role opens the marketing calendar (migration 0021). Owners and
  * admins can also delete anyone's notes and flags there.
  */
-export type Role = "owner" | "admin" | "viewer" | "instructor_admin";
+export type Role = "owner" | "admin" | "viewer" | "instructor_admin" | "sales";
 
 const REPORTING: Role[] = ["owner", "admin", "viewer"];
 const DOCUMENTS: Role[] = ["owner", "admin", "instructor_admin"];
+const SALES: Role[] = ["owner", "admin", "sales"];
 
 export async function getAccess() {
   const db = await userClient();
@@ -31,6 +33,7 @@ export async function getAccess() {
       db, user: null, canReport: false, canManageDocs: false,
       docStudioId: null as string | null, reportScope: "", ownerStudioId: null as string | null,
       canPlan: false, planStudioId: null as string | null, managesPlans: false,
+      canSell: false, salesStudioId: null as string | null,
     };
   }
 
@@ -38,6 +41,7 @@ export async function getAccess() {
   const { data } = await db.from("studio_users").select("studio_id, role");
   const rows = (data ?? []) as { studio_id: string; role: Role }[];
   const docRow = rows.find((r) => DOCUMENTS.includes(r.role));
+  const salesRow = rows.find((r) => SALES.includes(r.role));
 
   // Everything row level security consults when it decides what a report
   // returns: which studios, and whether the person is an owner (owners also
@@ -58,5 +62,7 @@ export async function getAccess() {
     canPlan: rows.length > 0,
     planStudioId: rows[0]?.studio_id ?? null,
     managesPlans: owner,
+    canSell: Boolean(salesRow),
+    salesStudioId: salesRow?.studio_id ?? null,
   };
 }

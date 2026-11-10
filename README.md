@@ -93,20 +93,34 @@ protecting as the schema grows.
    range — mind the daily budget, and prefer doing it on a day when the
    scheduled runs are light.
 
-## Access, instructor documents and the marketing calendar
+## Access, instructor documents, the marketing calendar and sales
 
-The front page (`/`) leads to three sections, and what each person can open
+The front page (`/`) leads to four sections, and what each person can open
 depends on their role in `studio_users`:
 
-| Role | Reporting | Instructor documents | Marketing calendar |
-| --- | --- | --- | --- |
-| `owner`, `admin` | yes | yes | yes, and can delete anyone's notes and flags |
-| `viewer` | yes | no | yes |
-| `instructor_admin` | no | yes | yes |
+| Role | Reporting | Instructor documents | Marketing calendar | Sales dashboard |
+| --- | --- | --- | --- | --- |
+| `owner`, `admin` | yes | yes | yes, and can delete anyone's notes and flags | yes |
+| `viewer` | yes | no | yes | no |
+| `instructor_admin` | no | yes | yes | no |
+| `sales` | no | no | yes | yes |
 
-Row level security enforces this (migrations 0018 and 0021), not just the
-page. An `instructor_admin` gets nothing back from any report table, view or
-dashboard function, and their Reporting card shows as unavailable.
+Row level security enforces this (migrations 0018, 0021 and 0022), not just
+the page. An `instructor_admin` or `sales` login gets nothing back from any
+report table, view or dashboard function, and their Reporting card shows as
+unavailable.
+
+**Sales dashboard** (`/sales`) lists hotels, companies, primary and secondary
+schools, and universities and colleges near each studio, for the salesperson
+offering staff-discount classes. Each lead keeps a status (to contact,
+contacted, follow up, interested, signed up, not interested, do not contact),
+a follow-up date and a history of calls, emails and notes. Leads are loaded
+from a JSON file kept out of git; importing again refreshes contact details
+and leaves status and history alone:
+
+```bash
+npm run leads:import -- --file ~/Documents/balance-sales-leads/leads.json
+```
 
 **Marketing calendar** (`/marketing`) is a month view with today highlighted.
 Key dates are flagged on their day: balance dates (studio birthdays, launches),

@@ -1,8 +1,9 @@
 /** What each staff role opens, in the words the Staff logins page uses. */
 export const STAFF_ROLES = [
-  { key: "admin", label: "Full access", note: "Reports and instructor documents" },
+  { key: "admin", label: "Full access", note: "Reports, instructor documents and sales" },
   { key: "instructor_admin", label: "Instructor documents only", note: "No reports" },
   { key: "viewer", label: "Reports only", note: "No instructor documents" },
+  { key: "sales", label: "Sales dashboard only", note: "Leads and the marketing calendar, no reports" },
 ] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number]["key"];
