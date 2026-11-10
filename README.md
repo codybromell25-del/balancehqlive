@@ -103,10 +103,10 @@ depends on their role in `studio_users`:
 | `owner`, `admin` | yes | yes | yes, and can delete anyone's notes and flags | yes |
 | `viewer` | yes | no | yes | no |
 | `instructor_admin` | no | yes | yes | no |
-| `sales` | no | no | yes | yes |
+| `sales` | no | no | no | yes |
 
-Row level security enforces this (migrations 0018, 0021 and 0022), not just
-the page. An `instructor_admin` or `sales` login gets nothing back from any
+Row level security enforces this (migrations 0018, 0021, 0022 and 0024), not
+just the page. An `instructor_admin` or `sales` login gets nothing back from any
 report table, view or dashboard function, and their Reporting card shows as
 unavailable.
 

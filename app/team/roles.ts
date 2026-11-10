@@ -3,7 +3,7 @@ export const STAFF_ROLES = [
   { key: "admin", label: "Full access", note: "Reports, instructor documents and sales" },
   { key: "instructor_admin", label: "Instructor documents only", note: "No reports" },
   { key: "viewer", label: "Reports only", note: "No instructor documents" },
-  { key: "sales", label: "Sales dashboard only", note: "Leads and the marketing calendar, no reports" },
+  { key: "sales", label: "Sales dashboard only", note: "The lead list and nothing else" },
 ] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number]["key"];

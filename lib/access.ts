@@ -11,10 +11,10 @@ import { userClient } from "@/lib/db";
  *   owner, admin       reports, instructor documents and the sales dashboard
  *   viewer             reports only — the shared desk login
  *   instructor_admin   instructor documents only
- *   sales              the sales dashboard only (migration 0022)
+ *   sales              the sales dashboard only (migrations 0022, 0024)
  *
- * Every role opens the marketing calendar (migration 0021). Owners and
- * admins can also delete anyone's notes and flags there.
+ * Every role but sales opens the marketing calendar (migration 0021).
+ * Owners and admins can also delete anyone's notes and flags there.
  */
 export type Role = "owner" | "admin" | "viewer" | "instructor_admin" | "sales";
 
@@ -33,7 +33,7 @@ export async function getAccess() {
       db, user: null, canReport: false, canManageDocs: false,
       docStudioId: null as string | null, reportScope: "", ownerStudioId: null as string | null,
       canPlan: false, planStudioId: null as string | null, managesPlans: false,
-      canSell: false, salesStudioId: null as string | null,
+      canSell: false, salesStudioId: null as string | null, hasAccess: false,
     };
   }
 
@@ -42,6 +42,7 @@ export async function getAccess() {
   const rows = (data ?? []) as { studio_id: string; role: Role }[];
   const docRow = rows.find((r) => DOCUMENTS.includes(r.role));
   const salesRow = rows.find((r) => SALES.includes(r.role));
+  const planRow = rows.find((r) => r.role !== "sales");
 
   // Everything row level security consults when it decides what a report
   // returns: which studios, and whether the person is an owner (owners also
@@ -59,10 +60,12 @@ export async function getAccess() {
     reportScope: `${studios.join(",")}|${owner ? "owner" : "viewer"}`,
     // Only an owner manages who can sign in (the Staff logins page).
     ownerStudioId: rows.find((r) => r.role === "owner")?.studio_id ?? null,
-    canPlan: rows.length > 0,
-    planStudioId: rows[0]?.studio_id ?? null,
+    canPlan: Boolean(planRow),
+    planStudioId: planRow?.studio_id ?? null,
     managesPlans: owner,
     canSell: Boolean(salesRow),
     salesStudioId: salesRow?.studio_id ?? null,
+    // Any role at all: without one the front page has nothing to offer.
+    hasAccess: rows.length > 0,
   };
 }

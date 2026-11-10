@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * by the database regardless.
  */
 export default async function Home() {
-  const { db, user, canReport, canManageDocs, ownerStudioId, canPlan, canSell } = await getAccess();
+  const { db, user, canReport, canManageDocs, ownerStudioId, canPlan, canSell, hasAccess } = await getAccess();
   if (!user) redirect("/login");
 
   const today = todayInDublin();
@@ -73,7 +73,7 @@ export default async function Home() {
       <h1 className="text-[1.6rem] font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-[var(--text-muted)]">Choose where you&apos;d like to go.</p>
 
-      {!canPlan ? (
+      {!hasAccess ? (
         <p className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--text-muted)]">
           Your account hasn&apos;t been given access to anything yet. Ask the studio owner to add you.
         </p>
