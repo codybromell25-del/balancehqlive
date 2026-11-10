@@ -90,14 +90,21 @@ async function main() {
   // yet go: still "to contact", never contacted, nothing logged.
   if (process.argv.includes("--prune")) {
     const keep = new Set(rows.map((r) => r.ref));
-    const { data: existing, error: listError } = await db
-      .from("sales_leads")
-      .select("id, ref, status, last_contact_at, follow_up_on, source")
-      .eq("studio_id", studio.id)
-      .not("ref", "is", null)
-      .range(0, 9999);
-    if (listError) throw listError;
-    const stale = (existing ?? []).filter(
+    // PostgREST returns at most 1,000 rows a request, so read in pages.
+    const existing: { id: string; ref: string; status: string; last_contact_at: string | null; follow_up_on: string | null; source: string | null }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error: listError } = await db
+        .from("sales_leads")
+        .select("id, ref, status, last_contact_at, follow_up_on, source")
+        .eq("studio_id", studio.id)
+        .not("ref", "is", null)
+        .order("id")
+        .range(from, from + 999);
+      if (listError) throw listError;
+      existing.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    const stale = existing.filter(
       (l) => !keep.has(l.ref) && l.status === "new" && !l.last_contact_at && !l.follow_up_on && l.source !== "Added by hand",
     );
     const { data: worked } = await db
